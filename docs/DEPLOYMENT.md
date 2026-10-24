@@ -90,8 +90,8 @@ REPO="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 8)"; echo "$REPO"
 Before committing, confirm that the private challenge spec is ignored:
 
 ```bash
-git status --short          # the "REint Full Stack SWE challenge v4 Shared.md" file must NOT appear
-git check-ignore -v "REint Full Stack SWE challenge v4 Shared.md"
+git status --short          # the private challenge spec (*challenge*.md) must NOT appear
+git check-ignore -v "<spec filename>.md"
 ```
 
 Then commit, create the repo, and push:

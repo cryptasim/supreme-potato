@@ -8,4 +8,4 @@ frontend/dist
 **/.ruff_cache
 .DS_Store
 .env*
-REint Full Stack SWE challenge v4 Shared.md
+*challenge*.md

@@ -9,10 +9,8 @@ GitHub, Vercel and YouTube, because that is what the reviewer will see.
 - [ ] Frontend checks pass: `(cd frontend && pnpm typecheck && pnpm test && pnpm build)` (expect 37 passed).
 - [ ] The private challenge spec is not tracked: `git status --short` does not list it, and
       `git ls-files docs/` shows only the project docs.
-- [ ] No tracked file names the hiring company. Run `git ls-files | xargs grep -il "<company name>"` and
-      review every hit. At the time of writing, `.gitignore`, `.vercelignore` and `docs/DEPLOYMENT.md`
-      mention the spec filename; decide whether to reword those lines (for example, ignore `*challenge*.md`
-      instead) before the repo goes public.
+- [x] No tracked file names the hiring company (`.gitignore` / `.vercelignore` now ignore `*challenge*.md`).
+      Note: older commits still contain the spec filename in `.gitignore`; see HANDOFF if that matters.
 - [ ] No secrets committed: no `.env` files, no `REFRESH_TOKEN` value anywhere in the repo.
 
 ## 2. Repository
@@ -53,9 +51,9 @@ GitHub, Vercel and YouTube, because that is what the reviewer will see.
 ## 6. README links
 
 - [ ] Replace `<link to unlisted youtube video>` with the video URL.
-- [ ] Replace `<Link to the app (e.g., vercel/heroku)>` with the production URL.
+- [x] Live app link in README: https://supreme-potato-murex.vercel.app (verify it opens in incognito).
 - [ ] Repo link is https://github.com/cryptasim/supreme-potato.
-- [ ] Screenshots added under `docs/screenshots/` and embedded, or the TODO line removed.
+- [x] Screenshots added under `docs/screenshots/` and embedded.
 - [ ] Commit and push the README change, then recheck the rendered README in incognito.
 
 ## 7. Submit the form (author)

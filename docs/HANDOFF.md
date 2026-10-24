@@ -32,10 +32,11 @@ FUELHH (WIND actuals, half-hourly) and WINDFOR (hourly wind forecasts) only.
 - [x] Code review; fixes applied (backend hardening incl. token-guarded, deadline-bounded refresh; frontend polish)
 - [x] Docs: README (layout, how to run, API, results, AI-tools disclosure, attribution), video scripts
       (docs/VIDEO_SCRIPT_PART1_CLIENT.md, docs/VIDEO_SCRIPT_PART2_TECH.md), docs/SUBMISSION_CHECKLIST.md
-- [ ] Commit and push to https://github.com/cryptasim/supreme-potato (public)
-- [ ] Docker smoke test: `docker compose up --build`, checks in docs/DEPLOYMENT.md §3
+- [x] Commit and push to https://github.com/cryptasim/supreme-potato (confirm it is public)
+- [x] Docker smoke test: both containers healthy, `/api/health` ok, 15 Jan decision numbers match via nginx
 - [ ] Deploy to Vercel; make deployment public; verify URLs in incognito (docs/DEPLOYMENT.md §7)
-- [ ] Fill README links (live app, video); add screenshots to docs/screenshots/
+- [x] Screenshots added to docs/screenshots/ and embedded in README
+- [ ] Fill README video link
 - [ ] Record both videos (≤5 min each), upload unlisted
 - [ ] Submit the form (author does this): see docs/SUBMISSION_CHECKLIST.md
 

@@ -15,7 +15,15 @@ data only (WINDFOR forecasts and FUELHH wind outturn), with a React frontend and
 
 ## Screenshots
 
-TODO: add screenshots to `docs/screenshots/` (Decision Desk, Forecast Accuracy, Methodology) and embed them here.
+**Decision Desk** — 15 Jan 2026 at the 09:00 D-1 cut-off: run used, P10 reliable wind, extra to procure.
+
+![Decision Desk](docs/screenshots/decision-desk.png)
+
+**Forecast Accuracy** — January-wide error statistics, error vs lead time, distribution, hour of day, daily MAE.
+
+![Forecast Accuracy](docs/screenshots/forecast-accuracy.png)
+
+**Methodology** — plain-English rules, data sources and limitations: [`docs/screenshots/methodology.png`](docs/screenshots/methodology.png).
 
 ## Key results (January 2026, delivery days 2 Jan to 1 Feb)
 
@@ -161,6 +169,7 @@ refresh swaps in a live pull without touching disk.
 │   ├── nginx.conf                Serves the SPA and proxies /api/ to the backend
 │   └── package.json              Scripts: dev, build, typecheck, test
 └── docs/
+    ├── screenshots/              README screenshots (Decision Desk, Forecast Accuracy, Methodology)
     ├── API_CONTRACT.md           Domain rules and JSON shapes (single source of truth)
     ├── DEPLOYMENT.md             Docker, GitHub and Vercel step by step, plus troubleshooting
     ├── HANDOFF.md                Project status and key decisions
