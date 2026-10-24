@@ -17,7 +17,8 @@ GitHub, Vercel and YouTube, because that is what the reviewer will see.
 
 ## 2. Repository
 
-- [ ] Pushed to https://github.com/cryptasim/supreme-potato on `main`.
+- [ ] Pushed to https://github.com/cryptasim/supreme-potato on `main` (origin already points there:
+      use `git push origin main` and skip the `gh repo create` step in `docs/DEPLOYMENT.md` §5).
 - [ ] Repo visibility is **Public** (Settings → General → Danger Zone).
 - [ ] Incognito: the repo URL opens, the README renders, the mermaid diagram draws, and the file tree
       matches the "Repository layout" section.

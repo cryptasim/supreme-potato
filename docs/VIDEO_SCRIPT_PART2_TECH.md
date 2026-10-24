@@ -82,8 +82,9 @@ the refresh swap).
 > older run. A run at or after the target start is never used. API tests check every shape, the 422
 > paths, CORS and the refresh token. Frontend tests run against fixtures that follow the contract.
 >
-> For the numbers themselves, I did not trust one implementation. A separate pandas recomputation
-> from the raw Elexon data matched the API on 33 of 33 checked values. In total there are 78 backend tests and
+> For the numbers themselves, I did not trust one implementation. In the repo, this test recomputes the
+> accuracy figures by brute force. Separately, a pandas recomputation from raw Elexon data matched 33 of
+> 33 values. In total there are 78 backend tests and
 > 37 frontend tests, all passing.
 
 ## 3:40–4:15 · Deployment

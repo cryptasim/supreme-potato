@@ -20,7 +20,7 @@ comes from the app on the January 2026 snapshot at the 09:00 cut-off.
 > Every morning before nine, your desk has to commit to tomorrow's power. Wind is now one of the
 > largest sources on the GB grid, and it moves by gigawatts from one day to the next. If you buy to the
 > raw forecast and the wind comes in short, you are covering the gap in the intraday market or in
-> imbalance, usually at the worst price of the day. So the real question is not "what is the
+> imbalance, often at a worse price. So the real question is not "what is the
 > forecast?" It is "how much of it can I actually rely on?"
 
 ## 0:30–1:00 · What we built
@@ -64,7 +64,7 @@ then the "Error vs lead time" chart, then the daily MAE bars.
 > Across all 744 delivery hours, at your 09:00 cut-off, the typical hourly miss was about 2 gigawatts,
 > roughly 18 percent of average wind output. More important for you is the direction. The forecast was
 > too high on average by 1.7 gigawatts. Over the month it forecast 9,695 gigawatt-hours and the meters
-> recorded 8,396, about 15 percent less.
+> recorded 8,396. The forecast ran about 15 percent high.
 >
 > The over-forecast is worst when it is windiest. In hours forecast at 20 gigawatts or more, every
 > single hour came in short, by 4.6 gigawatts on average.

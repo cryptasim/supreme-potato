@@ -41,7 +41,7 @@ Findings at the 09:00 cut-off:
 - **Reliable wind and extra to procure.** For 15 Jan, the forecast was 278.6 GWh, P10 (reliable wind)
   was 178.9 GWh, so the extra to procure was 99.7 GWh. Realised outturn was 254.0 GWh, with MAE 1,025.2 MW.
   Because the band is a single January-wide offset, the extra to procure is the same 99.7 GWh on 30 of
-  31 days (one day is lower because P10 is clipped at zero). Conditioning the band is the top next step.
+  31 days (8 Jan is lower because some hourly P10s are clipped at zero). Conditioning the band is the top next step.
 - **Best and worst days.** 19 Jan had the lowest daily MAE (683.6 MW, a slight under-forecast).
   28 Jan had the highest (5,329.0 MW): 267.2 GWh forecast against 139.3 GWh actual.
 - **High-wind hours are the problem.** Hours forecast at 20–25 GW had MAE 4,550.6 MW and bias +4,550.6 MW,
@@ -102,8 +102,8 @@ flowchart LR
     F --> I
     I --> S[("snapshot_jan2026.json.gz")]
     S --> DS["data_store.py (immutable in-memory store)"]
-    W -. "POST /api/refresh (token)" .-> DS
-    F -. "POST /api/refresh (token)" .-> DS
+    W -.->|"POST /api/refresh (token)"| DS
+    F -.->|"POST /api/refresh (token)"| DS
     DS --> SEL["selection.py (bisect per target)"]
     SEL --> SVC["service.py (payloads, lru_cache)"]
     M["metrics.py (stdlib stats)"] --> SVC
@@ -272,11 +272,10 @@ All endpoints are under `/api` and return JSON. Bad parameters return 422.
 
 ## AI tools used
 
-This application was built with **Claude Code (Anthropic)**. I used multi-agent workflows for
+This application was built with **Claude Code (Anthropic)**, using multi-agent workflows for
 implementation, for independent numeric verification (a separate agent recomputed the statistics from
-raw Elexon data with pandas and compared them with the API), and for code review. I directed the work:
-I set the domain decisions and the API contract, reviewed the code and the review findings, chose which
-fixes to apply, and validated the results against the data and the running app.
+raw Elexon data with pandas and compared them with the API), and for code review. The author directed
+the work, reviewed the output and validated the results.
 
 ## Data attribution
 
