@@ -1,0 +1,7 @@
+# Runtime dependencies for the Vercel Python function (api/index.py).
+# Vercel only reads a dependency manifest at the project root, so this file
+# mirrors backend/requirements.txt pin-for-pin (CI fails if they drift).
+# Nested "-r" includes are not documented as supported by Vercel, hence the copy.
+fastapi==0.115.6
+pydantic==2.10.4
+httpx==0.28.1

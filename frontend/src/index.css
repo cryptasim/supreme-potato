@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Layout: top nav + single centred column of cards; controls row above the charts it scopes.
+  Palette: cool slate neutrals (a control-room calm), one hue per data role:
+    forecast = blue, actual = green, shortfall risk = warm orange, error metrics = violet.
+  Chart hues were run through the dataviz palette validator against both surfaces.
+*/
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --ink: #0f1a24;
+  --ink-2: #44515f;
+  --muted: #6a7684;
+  --line: #dfe4ea;
+  --grid: #e9edf1;
+  --axis: #c4ccd5;
+  --brand: #12324f;
+  --brand-ink: #ffffff;
+  --focus: #2a78d6;
+
+  --forecast: #2a78d6;
+  --forecast-band: rgba(42, 120, 214, 0.14);
+  --actual: #119068;
+  --risk: #e0632e;
+  --risk-soft: rgba(224, 99, 46, 0.1);
+  --metric: #6250d6;
+  --good: #0b7a3e;
+  --critical: #c53030;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0c1117;
+    --surface: #141a21;
+    --surface-2: #10161c;
+    --ink: #e7ecf1;
+    --ink-2: #aab5c1;
+    --muted: #8492a1;
+    --line: #253039;
+    --grid: #1e272f;
+    --axis: #34414d;
+    --brand: #8fc1f5;
+    --brand-ink: #0c1117;
+    --focus: #6aa8ef;
+
+    --forecast: #3987e5;
+    --forecast-band: rgba(57, 135, 229, 0.2);
+    --actual: #1fae7c;
+    --risk: #df6a32;
+    --risk-soft: rgba(223, 106, 50, 0.14);
+    --metric: #9085e9;
+    --good: #3cc77a;
+    --critical: #f07070;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c1117;
+  --surface: #141a21;
+  --surface-2: #10161c;
+  --ink: #e7ecf1;
+  --ink-2: #aab5c1;
+  --muted: #8492a1;
+  --line: #253039;
+  --grid: #1e272f;
+  --axis: #34414d;
+  --brand: #8fc1f5;
+  --brand-ink: #0c1117;
+  --focus: #6aa8ef;
+
+  --forecast: #3987e5;
+  --forecast-band: rgba(57, 135, 229, 0.2);
+  --actual: #1fae7c;
+  --risk: #df6a32;
+  --risk-soft: rgba(223, 106, 50, 0.14);
+  --metric: #9085e9;
+  --good: #3cc77a;
+  --critical: #f07070;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Skeleton shimmer; disabled for reduced motion. */
+.skeleton {
+  background: linear-gradient(90deg, var(--grid) 0%, var(--surface-2) 50%, var(--grid) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { scroll-behavior: auto !important; transition: none !important; }
+}
+
+/* Recharts: keep chart text on theme tokens. */
+.recharts-cartesian-axis-tick-value { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.recharts-label { fill: var(--muted); font-size: 11px; }
+.recharts-brush-texts text { fill: var(--muted); font-size: 10px; }
+.recharts-surface:focus { outline: none; }
+
+/* Range slider styled to the theme. */
+input[type='range'] { accent-color: var(--metric); }

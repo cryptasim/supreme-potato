@@ -1,0 +1,23 @@
+REint Full Stack SWE challenge v4 Shared.md
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node / Vite
+node_modules/
+dist/
+
+# Deploy / local env
+.vercel/
+.env*
+!.env.example
+
+# OS
+.DS_Store
+
+# Local Claude settings
+.claude/

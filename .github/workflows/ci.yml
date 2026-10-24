@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Pytest
+        run: pytest -q
+
+  vercel-entrypoint:
+    name: Vercel entrypoint smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Vercel installs the root requirements.txt; it must stay identical to
+      # the backend's runtime pins (comments aside).
+      - name: Root requirements mirror backend/requirements.txt
+        run: diff <(grep -v '^\s*#' requirements.txt | sed '/^\s*$/d') <(grep -v '^\s*#' backend/requirements.txt | sed '/^\s*$/d')
+
+      # Install only what Vercel installs, then import the function exactly as
+      # the Python runtime would and hit /api/health through the ASGI app.
+      - name: Import api/index.py and call /api/health
+        run: |
+          pip install -r requirements.txt
+          python - <<'EOF'
+          import asyncio, importlib.util, json
+
+          spec = importlib.util.spec_from_file_location("vercel_entry", "api/index.py")
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+
+          async def call(path):
+              sent = []
+              scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+                       "method": "GET", "scheme": "https", "path": path, "raw_path": path.encode(),
+                       "query_string": b"", "root_path": "", "headers": [],
+                       "client": ("127.0.0.1", 1), "server": ("localhost", 443)}
+              async def receive():
+                  return {"type": "http.request", "body": b"", "more_body": False}
+              async def send(msg):
+                  sent.append(msg)
+              await mod.app(scope, receive, send)
+              status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+              body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+              return status, json.loads(body)
+
+          status, body = asyncio.run(call("/api/health"))
+          assert status == 200 and body == {"status": "ok"}, (status, body)
+          print("api/index.py OK:", body)
+          EOF
+
+  frontend:
+    name: Frontend (typecheck + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

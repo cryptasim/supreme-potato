@@ -1,0 +1,11 @@
+# Keep `vercel deploy` uploads small: local environments and caches are rebuilt
+# on Vercel, and the private challenge spec must never leave this machine.
+backend/.venv
+**/node_modules
+frontend/dist
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.DS_Store
+.env*
+REint Full Stack SWE challenge v4 Shared.md

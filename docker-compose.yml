@@ -1,0 +1,22 @@
+# Local production-like stack:
+#   http://localhost:8080        -> nginx (SPA) -> /api proxied to backend
+#   http://localhost:8000/api/*  -> FastAPI directly (handy for curl / docs)
+services:
+  backend:
+    build:
+      context: ./backend
+    image: gridbricks-backend
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    image: gridbricks-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
