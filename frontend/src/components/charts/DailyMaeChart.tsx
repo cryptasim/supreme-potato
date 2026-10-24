@@ -35,7 +35,10 @@ export function DailyMaeChart({ data, onSelectDay, height = 240 }: Props) {
             maxBarSize={18}
             isAnimationActive={false}
             cursor={onSelectDay ? 'pointer' : undefined}
-            onClick={(d: { delivery_date?: string }) => d?.delivery_date && onSelectDay?.(d.delivery_date)}
+            onClick={(item) => {
+              const day = (item as { payload?: ByDay }).payload?.delivery_date;
+              if (day) onSelectDay?.(day);
+            }}
           >
             {rows.map((r) => (
               <Cell key={r.delivery_date} fill={r.delivery_date === worst?.delivery_date ? 'var(--risk)' : 'var(--metric)'} />
