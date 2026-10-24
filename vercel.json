@@ -6,7 +6,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.py": {
-      "maxDuration": 60,
+      "maxDuration": 120,
       "includeFiles": "backend/{app,data}/**",
       "excludeFiles": "{frontend/**,docs/**,.github/**,backend/.venv/**,backend/tests/**,backend/scripts/**,**/__pycache__/**,**/.pytest_cache/**,**/.ruff_cache/**}"
     }

@@ -1,7 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useMeta } from '../../api/hooks';
 import { fmtUtcDate } from '../../lib/format';
+import { useAnalyst } from '../../agent/AnalystProvider';
+import { AnalystPanel } from '../agent/AnalystPanel';
+import { SparkIcon } from '../agent/AgentTrace';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
@@ -17,6 +20,32 @@ function Logo() {
       <path d="M6 21c4-7 8-7 10 0s6 7 10 0" fill="none" stroke="var(--brand-ink)" strokeWidth="2.6" strokeLinecap="round" />
       <path d="M6 13c4-5 8-5 10 0s6 5 10 0" fill="none" stroke="var(--brand-ink)" strokeOpacity=".55" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function AnalystButton() {
+  const { open, setOpen } = useAnalyst();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(!open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, setOpen]);
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(!open)}
+      aria-expanded={open}
+      className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-brand-ink shadow-sm hover:opacity-90"
+    >
+      <SparkIcon size={13} />
+      Ask the analyst
+      <kbd className="ml-1 hidden rounded border border-white/25 px-1 font-sans text-[10px] font-medium opacity-80 lg:inline">Ctrl K</kbd>
+    </button>
   );
 }
 
@@ -59,6 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ? 'API unreachable'
                 : `GB wind · delivery ${fmtUtcDate(meta.data?.delivery_from ?? '2026-01-02')} – ${fmtUtcDate(meta.data?.delivery_to ?? '2026-02-01')} 2026`}
             </span>
+            <AnalystButton />
             <ThemeToggle />
           </div>
         </div>
@@ -83,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
         </div>
       </footer>
+      <AnalystPanel />
     </div>
   );
 }

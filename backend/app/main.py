@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import hmac
+import json
 import os
-from datetime import date
+from collections.abc import Iterator
+from datetime import date, timedelta
+from functools import lru_cache
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from app import data_store, service
 from app import schemas as s
+from app.agent import gateway as agent_gateway
+from app.agent import guard, prompts
+from app.agent.runner import Limits, run_agent
 from app.data_store import DEFAULT_CUTOFF, DELIVERY_FROM, DELIVERY_TO
 from app.selection import ActualMode
 
@@ -109,3 +116,78 @@ def refresh(x_refresh_token: str | None = Header(None)) -> dict:
         raise HTTPException(502, f"Refresh from Elexon failed: {exc}") from exc
     service.clear_caches()
     return service.meta(store)
+
+
+# ---------------------------------------------------------------- analyst agent
+
+
+@lru_cache(maxsize=1)
+def _anthropic_gateway() -> agent_gateway.ModelGateway:
+    return agent_gateway.AnthropicGateway()
+
+
+def get_gateway() -> agent_gateway.ModelGateway:
+    """Dependency so tests can swap in a scripted model; 503 when no API key is configured."""
+    if not agent_gateway.configured():
+        raise HTTPException(503, "The analyst is not configured on this deployment (ANTHROPIC_API_KEY unset).")
+    return _anthropic_gateway()
+
+
+def _agent_limits() -> Limits:
+    return Limits(deadline_s=float(os.environ.get("AGENT_DEADLINE_S", "100")))
+
+
+def _rate_limit(request: Request) -> None:
+    reason = guard.limiter.check(guard.client_key(request.headers, request.client.host if request.client else None))
+    if reason:
+        raise HTTPException(429, reason)
+
+
+def _sse(events: Iterator[dict]) -> StreamingResponse:
+    def body() -> Iterator[str]:
+        for event in events:
+            yield f"data: {json.dumps(event, separators=(',', ':'), default=str)}\n\n"
+
+    # X-Accel-Buffering stops nginx buffering the stream; no-transform stops proxies re-encoding it.
+    headers = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
+    return StreamingResponse(body(), media_type="text/event-stream", headers=headers)
+
+
+@app.get("/api/agent/status", response_model=s.AgentStatus)
+def agent_status() -> dict:
+    enabled = agent_gateway.configured()
+    return {
+        "enabled": enabled,
+        "model": agent_gateway.model_name(),
+        "reason": None if enabled else "ANTHROPIC_API_KEY is not set on this deployment.",
+    }
+
+
+@app.post("/api/agent/chat")
+def agent_chat(
+    req: s.ChatRequest,
+    request: Request,
+    gateway: agent_gateway.ModelGateway = Depends(get_gateway),
+) -> StreamingResponse:
+    """Stream an analyst answer as server-sent events (see app/agent/runner.py for event types)."""
+    _rate_limit(request)
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+    ctx = req.context
+    note = prompts.ui_context(ctx.page, ctx.delivery_date, ctx.cutoff) if ctx else None
+    if note:
+        messages[-1] = {"role": "user", "content": f"{note}\n\n{messages[-1]['content']}"}
+    return _sse(run_agent(gateway, data_store.get_store(), messages, kind="chat", limits=_agent_limits()))
+
+
+@app.post("/api/agent/briefing")
+def agent_briefing(
+    req: s.BriefingRequest,
+    request: Request,
+    gateway: agent_gateway.ModelGateway = Depends(get_gateway),
+) -> StreamingResponse:
+    """Research a delivery day with the tools, then stream a validated structured briefing."""
+    _in_window(req.delivery_date, "delivery_date")
+    _rate_limit(request)
+    task = prompts.briefing_task(req.delivery_date, req.cutoff, req.delivery_date - timedelta(days=1))
+    messages = [{"role": "user", "content": task}]
+    return _sse(run_agent(gateway, data_store.get_store(), messages, kind="briefing", limits=_agent_limits()))

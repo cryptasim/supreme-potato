@@ -51,3 +51,36 @@ export function decisionFixture(date = '2026-01-15'): DecisionResponse {
     band: { q10: -2100, q50: 50, q90: 1900 },
   };
 }
+
+const sseFrames = (events: unknown[]) => events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
+
+/** A recorded-shape briefing run: two research calls, then the validated briefing. */
+export const BRIEFING_SSE = sseFrames([
+  { type: 'start', run_id: 'r1', model: 'claude-opus-5-5', kind: 'briefing' },
+  { type: 'reasoning', delta: 'Check the decision view and recent bias.' },
+  { type: 'tool_call', id: 't1', name: 'get_decision_view', label: 'Decision view for 15 Jan at 09:00', input: {} },
+  { type: 'tool_result', id: 't1', name: 'get_decision_view', ok: true, duration_ms: 3, output: { ok: 1 } },
+  { type: 'tool_call', id: 't2', name: 'get_trailing_performance', label: 'Trailing 7-day performance', input: {} },
+  { type: 'tool_result', id: 't2', name: 'get_trailing_performance', ok: true, duration_ms: 2, output: { ok: 1 } },
+  { type: 'tool_call', id: 't3', name: 'publish_briefing', label: 'Publish briefing', input: {} },
+  { type: 'tool_result', id: 't3', name: 'publish_briefing', ok: true, duration_ms: 0, output: { published: true } },
+  {
+    type: 'briefing',
+    briefing: {
+      headline: 'Hold 82.0 GWh of cover: forecasts have run high all week.',
+      risk_level: 'elevated',
+      forecast_gwh: 315.6,
+      reliable_wind_gwh: 233.6,
+      recommended_extra_gwh: 82.0,
+      recommendation: 'Buy above the standard cover before the 09:20 gate.',
+      drivers: ['Trailing 7-day bias +1.8 GW', 'Walk-forward band is wider than January-wide'],
+      watch_items: ['09:30 run lands after the gate'],
+      confidence_note: 'One month of data.',
+      hindsight: null,
+    },
+  },
+  {
+    type: 'done', stop_reason: 'briefing_published', turns: 3, tool_calls: 3, elapsed_ms: 14_200, model: 'claude-opus-5-5',
+    usage: { input_tokens: 9000, output_tokens: 1200, cache_read_input_tokens: 6000 },
+  },
+]);

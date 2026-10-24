@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useAnalystPageContext } from '../agent/AnalystProvider';
 import { useMeta } from '../api/hooks';
 import { DEFAULT_RUN_TIMES } from '../lib/cutoff';
 import { fmtUtcDateTime } from '../lib/format';
@@ -28,12 +29,14 @@ const SECTIONS = [
   ['error', 'Error definition'],
   ['band', 'Shortfall-risk band'],
   ['sources', 'Data sources'],
+  ['analyst', 'AI desk analyst'],
   ['limits', 'Limitations & next steps'],
 ] as const;
 
 /** Plain statement of every rule the numbers depend on, mirroring docs/API_CONTRACT.md. */
 export function MethodologyPage() {
   const meta = useMeta();
+  useAnalystPageContext({ page: 'methodology' });
   const runs = meta.data?.forecast_run_times_utc ?? DEFAULT_RUN_TIMES;
 
   return (
@@ -179,6 +182,43 @@ export function MethodologyPage() {
               {meta.data.data_mode} data, snapshot taken {fmtUtcDateTime(meta.data.snapshot_created_at)} UTC.
             </p>
           )}
+        </Section>
+
+        <Section id="analyst" title="AI desk analyst">
+          <p>
+            The analyst is a Claude agent with tool use. It does not see the database directly and it does not
+            calculate anything itself: it plans which of WindSight&apos;s data tools to call, reads their results and
+            explains them. The tools run the same code as the dashboard, so its numbers match the screens.
+          </p>
+          <Rule>
+            get_decision_view · get_trailing_performance · get_accuracy_summary · get_lead_time_curve ·
+            compare_cutoffs · rank_days · get_outturn (hindsight) · get_dataset_overview
+          </Rule>
+          <ul className="list-disc pl-5">
+            <li>
+              <strong className="text-ink">Decision time and hindsight are kept apart.</strong> The decision view
+              contains no actuals; outturn comes from a separately labelled hindsight tool.
+            </li>
+            <li>
+              <strong className="text-ink">Out-of-sample check.</strong> get_trailing_performance only uses hours that
+              were already metered before the decision time, giving a walk-forward band to test the January-wide
+              (in-sample) P10 against.
+            </li>
+            <li>
+              <strong className="text-ink">Structured briefing.</strong> The pre-gate briefing must be published through
+              a schema-validated tool (risk level, recommended cover, evidence, watch items); an invalid briefing is
+              sent back to the agent to fix.
+            </li>
+            <li>
+              <strong className="text-ink">Auditable.</strong> Every tool call, its timing and the exact data returned
+              are shown beside the answer.
+            </li>
+            <li>
+              <strong className="text-ink">Bounded.</strong> Each run is capped in steps and time, and requests are rate
+              limited.
+            </li>
+          </ul>
+          <p>The analyst supports the decision; the desk owns it.</p>
         </Section>
 
         <Section id="limits" title="Limitations & next steps">

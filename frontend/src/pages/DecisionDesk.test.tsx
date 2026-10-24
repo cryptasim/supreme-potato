@@ -3,7 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { META, decisionFixture } from '../test/fixtures';
+import { AnalystProvider } from '../agent/AnalystProvider';
+import { BRIEFING_SSE, META, decisionFixture } from '../test/fixtures';
 import { DecisionDesk } from './DecisionDesk';
 
 function jsonResponse(body: unknown, status = 200) {
@@ -15,7 +16,9 @@ function renderDesk(initialUrl = '/?date=2026-01-15') {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialUrl]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <DecisionDesk />
+        <AnalystProvider>
+          <DecisionDesk />
+        </AnalystProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -28,6 +31,9 @@ describe('DecisionDesk', () => {
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://localhost');
       if (url.pathname === '/api/meta') return jsonResponse(META);
+      if (url.pathname === '/api/agent/status') return jsonResponse({ enabled: true, model: 'claude-opus-5-5', reason: null });
+      if (url.pathname === '/api/agent/briefing')
+        return new Response(BRIEFING_SSE, { headers: { 'Content-Type': 'text/event-stream' } });
       if (url.pathname === '/api/decision') return jsonResponse(decisionFixture(url.searchParams.get('delivery_date')!));
       return jsonResponse({ detail: 'not found' }, 404);
     });
@@ -99,5 +105,24 @@ describe('DecisionDesk', () => {
     renderDesk();
     expect(await screen.findByRole('alert')).toHaveTextContent('delivery_date outside window');
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('runs the agent briefing and renders the structured recommendation', async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    const button = await screen.findByRole('button', { name: /Generate briefing/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    expect(await screen.findByText('Elevated shortfall risk')).toBeInTheDocument();
+    expect(screen.getByText(/Hold 82.0 GWh of cover/)).toBeInTheDocument();
+    expect(screen.getByText('82.0 GWh')).toBeInTheDocument();
+    expect(screen.getByText(/\+31.6 GWh vs the standard P10 cover \(50.4 GWh\)/)).toBeInTheDocument();
+    expect(screen.getByText('Trailing 7-day bias +1.8 GW')).toBeInTheDocument();
+    expect(screen.getByText(/Researched with 2 data calls/)).toBeInTheDocument();
+    expect(screen.getByText(/Claude Opus 5.5 · 3 tool calls · 3 model turns · 14.2 s/)).toBeInTheDocument();
+
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).includes('/api/agent/briefing'))!;
+    expect(JSON.parse((call[1] as RequestInit).body as string)).toEqual({ delivery_date: '2026-01-15', cutoff: '09:00' });
   });
 });

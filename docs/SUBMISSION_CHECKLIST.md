@@ -5,8 +5,8 @@ GitHub, Vercel and YouTube, because that is what the reviewer will see.
 
 ## 1. Before pushing
 
-- [ ] Backend checks pass: `(cd backend && .venv/bin/ruff check . && .venv/bin/pytest -q)` (expect 78 passed).
-- [ ] Frontend checks pass: `(cd frontend && pnpm typecheck && pnpm test && pnpm build)` (expect 37 passed).
+- [ ] Backend checks pass: `(cd backend && .venv/bin/ruff check . && .venv/bin/pytest -q)` (expect 125 passed).
+- [ ] Frontend checks pass: `(cd frontend && pnpm typecheck && pnpm test && pnpm build)` (expect 50 passed).
 - [ ] The private challenge spec is not tracked: `git status --short` does not list it, and
       `git ls-files docs/` shows only the project docs.
 - [x] No tracked file names the hiring company (`.gitignore` / `.vercelignore` now ignore `*challenge*.md`).

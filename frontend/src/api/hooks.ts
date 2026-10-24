@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { api } from './client';
+import { agentApi, api } from './client';
 import type { ActualMode, SelectionParams } from './types';
 
 // The dataset is a fixed historical snapshot, so responses never go stale within a session.
@@ -44,4 +44,8 @@ export function useHorizonCurve(actualMode: ActualMode) {
     placeholderData: keepPreviousData,
     ...STATIC,
   });
+}
+
+export function useAgentStatus() {
+  return useQuery({ queryKey: ['agent-status'], queryFn: ({ signal }) => agentApi.status(signal), staleTime: 5 * 60_000 });
 }

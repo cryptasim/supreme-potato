@@ -1,6 +1,7 @@
 # API contract (v1)
 
-All endpoints are `GET`, return JSON, and live under `/api`. Times are ISO‑8601 UTC strings ending in `Z`
+Data endpoints are `GET`, return JSON, and live under `/api`. The analyst endpoints at the end are `POST`
+and stream server-sent events. Times are ISO‑8601 UTC strings ending in `Z`
 (January = GMT, so UK local time == UTC). Generation values are MW (float, 1 dp is fine).
 
 ## Domain rules (single source of truth)
@@ -119,3 +120,44 @@ Snapshot/refresh window: actuals for settlement dates 2026‑01‑02..2026‑02�
 horizon mode needs for small H).
 
 Errors: FastAPI default `{"detail": ...}` with 422 for bad params.
+
+
+## Analyst agent endpoints
+
+Design rationale, guardrails and the tool catalogue: [`AGENT.md`](AGENT.md).
+
+### `GET /api/agent/status`
+`{"enabled": bool, "model": "claude-opus-5-5", "reason": string|null}`. `enabled` is false when
+`ANTHROPIC_API_KEY` is unset (or `AGENT_DISABLED=1`); the UI then disables the analyst.
+
+### `POST /api/agent/chat` → `text/event-stream`
+```json
+{
+  "messages": [{"role": "user", "content": "Is the standard cover enough for 15 Jan?"}],
+  "context": {"page": "decision", "delivery_date": "2026-01-15", "cutoff": "09:00"}
+}
+```
+- `messages`: 1–20 text-only turns, alternating, starting and ending with `user`, each ≤ 4,000 chars.
+  Tool calls and results are never accepted from the client; the agent re-derives every number.
+- `context` (optional) tells the agent what the user is looking at; it is prepended to the last
+  user message as a `<ui_context>` note.
+
+### `POST /api/agent/briefing` → `text/event-stream`
+`{"delivery_date": "2026-01-15", "cutoff": "09:00"}` (date must be in the delivery window, else 422).
+The agent researches the day and ends by publishing a schema-validated `briefing` event.
+
+### Event stream
+Each frame is `data: {json}\n\n` with a `type`:
+
+| type | payload |
+|---|---|
+| `start` | `run_id`, `model`, `kind` (`chat` or `briefing`) |
+| `text` | `delta`: answer text as it streams |
+| `reasoning` | `delta`: summarised model reasoning |
+| `tool_call` | `id`, `name`, `label` (human readable), `input` |
+| `tool_result` | `id`, `name`, `ok`, `duration_ms`, `output` (the exact JSON the model saw) |
+| `briefing` | `briefing`: `headline`, `risk_level` (`low`/`elevated`/`high`), `forecast_gwh`, `reliable_wind_gwh`, `recommended_extra_gwh`, `recommendation`, `drivers[2-4]`, `watch_items[1-3]`, `confidence_note`, `hindsight` (nullable) |
+| `error` | `message`, `retryable` |
+| `done` | `stop_reason`, `turns`, `tool_calls`, `usage` (`input_tokens`, `output_tokens`, `cache_read_input_tokens`), `elapsed_ms`, `model` |
+
+HTTP errors before the stream starts: 422 bad body, 429 rate limited, 503 analyst not configured.

@@ -25,8 +25,8 @@ FUELHH (WIND actuals, half-hourly) and WINDFOR (hourly wind forecasts) only.
 
 ## Status
 - [x] Plan, domain research, API contract, data snapshot, ingest script, Elexon client (retries + deadline)
-- [x] Backend: selection.py, metrics.py, service.py, data_store.py, schemas.py, main.py; 78 pytest tests pass, ruff clean
-- [x] Frontend: Decision Desk / Forecast Accuracy / Methodology pages; 37 Vitest tests pass, typecheck clean, build OK
+- [x] Backend: selection.py, metrics.py, service.py, data_store.py, schemas.py, main.py; ruff clean
+- [x] Frontend: Decision Desk / Forecast Accuracy / Methodology pages; typecheck clean, build OK
 - [x] Infra: vercel.json, api/index.py, Dockerfiles, docker-compose.yml, nginx.conf, CI, docs/DEPLOYMENT.md
 - [x] Independent numeric verification (pandas recompute from raw Elexon vs API): 33/33 matched
 - [x] Code review; fixes applied (backend hardening incl. token-guarded, deadline-bounded refresh; frontend polish)
@@ -35,6 +35,8 @@ FUELHH (WIND actuals, half-hourly) and WINDFOR (hourly wind forecasts) only.
 - [x] Commit and push to https://github.com/cryptasim/supreme-potato (confirm it is public)
 - [x] Docker smoke test: both containers healthy, `/api/health` ok, 15 Jan decision numbers match via nginx
 - [ ] Deploy to Vercel; make deployment public; verify URLs in incognito (docs/DEPLOYMENT.md §7)
+- [x] AI desk analyst (agent layer): backend/app/agent/, /api/agent/*, BriefingCard + AnalystPanel; design in docs/AGENT.md
+- [ ] Set ANTHROPIC_API_KEY on Vercel (+ workspace spend limit), redeploy, dry-run a briefing; add real analyst screenshots
 - [x] Screenshots added to docs/screenshots/ and embedded in README
 - [ ] Fill README video link
 - [ ] Record both videos (≤5 min each), upload unlisted

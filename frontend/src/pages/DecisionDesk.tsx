@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useAnalystPageContext } from '../agent/AnalystProvider';
 import { useDecision, useMeta } from '../api/hooks';
 import type { ActualMode, DecisionResponse } from '../api/types';
+import { BriefingCard } from '../components/agent/BriefingCard';
 import { DecisionChart } from '../components/charts/DecisionChart';
 import { CutoffControl } from '../components/decision/CutoffControl';
 import { DateStepper } from '../components/decision/DateStepper';
@@ -40,6 +42,7 @@ export function DecisionDesk() {
   };
 
   const q = useDecision(date, cutoff, actualMode);
+  useAnalystPageContext({ page: 'decision', delivery_date: date, cutoff });
 
   return (
     <div className="flex flex-col gap-5">
@@ -63,7 +66,7 @@ export function DecisionDesk() {
       ) : !q.data ? (
         <DecisionSkeleton />
       ) : (
-        <DecisionBody data={q.data} busy={q.isFetching} />
+        <DecisionBody data={q.data} busy={q.isFetching} cutoff={cutoff} />
       )}
     </div>
   );
@@ -81,7 +84,7 @@ function PageIntro() {
   );
 }
 
-function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean }) {
+function DecisionBody({ data, busy, cutoff }: { data: DecisionResponse; busy: boolean; cutoff: string }) {
   const [showTable, setShowTable] = useState(false);
   const s = data.summary;
   const extraShare =
@@ -132,6 +135,8 @@ function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean })
           />
         </KpiGrid>
       </div>
+
+      <BriefingCard deliveryDate={data.delivery_date} cutoff={cutoff} standardExtraMwh={s.extra_to_procure_mwh} />
 
       <Panel
         title={`Wind forecast vs actual · ${fmtLongDate(data.delivery_date)}`}

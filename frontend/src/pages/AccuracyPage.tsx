@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAnalystPageContext } from '../agent/AnalystProvider';
 import { useAccuracy, useHorizonCurve, useMeta, useSeries } from '../api/hooks';
 import type { AccuracyResponse, ActualMode, SelectionParams } from '../api/types';
 import { WorstHoursTable } from '../components/accuracy/WorstHoursTable';
@@ -59,6 +60,7 @@ export function AccuracyPage() {
   );
 
   const accuracy = useAccuracy(sel, actualMode);
+  useAnalystPageContext({ page: 'accuracy', cutoff: mode === 'cutoff' ? cutoff : undefined });
   const curve = useHorizonCurve(actualMode);
 
   return (

@@ -1,3 +1,4 @@
+import type { AgentStatus } from '../agent/types';
 import type {
   AccuracyResponse,
   ActualMode,
@@ -67,4 +68,8 @@ export const api = {
 
   horizonCurve: (actualMode: ActualMode, signal?: AbortSignal) =>
     getJson<HorizonCurvePoint[]>('/horizon-curve', { actual_mode: actualMode }, signal),
+};
+
+export const agentApi = {
+  status: (signal?: AbortSignal) => getJson<AgentStatus>('/agent/status', undefined, signal),
 };

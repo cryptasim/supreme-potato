@@ -34,8 +34,28 @@ Environment variables:
   curl -s -X POST -H "X-Refresh-Token: $REFRESH_TOKEN" "$URL/api/refresh" | head -c 400
   ```
 
-  The refresh finishes or fails (502, snapshot kept) within ~45 s, inside the 60 s function limit.
+  The refresh finishes or fails (502, snapshot kept) within ~45 s, inside the function time limit.
   CORS allows only `GET`, so browsers on other origins cannot trigger it.
+- `ANTHROPIC_API_KEY` turns on the AI desk analyst (chat panel and pre-gate briefing). Unset, the rest
+  of the app works normally, `/api/agent/status` reports `"enabled": false` and the agent endpoints
+  return 503. See "Enable the AI analyst" below.
+- Optional agent tuning: `AGENT_MODEL` (default `claude-opus-5-5`), `AGENT_EFFORT` (`medium`),
+  `AGENT_DEADLINE_S` (100, must stay below the function's `maxDuration` of 120 s), `AGENT_FALLBACKS`
+  (`on`; set `off` to drop the server-side refusal fallback beta), `AGENT_RATE_PER_MIN` (6),
+  `AGENT_RATE_PER_HOUR` (40), `AGENT_DAILY_CAP` (500), `AGENT_DISABLED=1` (kill switch).
+
+### Enable the AI analyst
+
+1. Create a key at <https://console.anthropic.com> → API Keys. Use a dedicated workspace for this app.
+2. **Set a monthly spend limit on that workspace** (Console → Settings → Limits). The agent endpoints are
+   public; the in-app rate limits are per instance and only a brake. A briefing costs roughly
+   $0.05–0.30 depending on how much the agent researches; every run reports its token usage in the UI.
+3. Vercel → Project → Settings → Environment Variables → add `ANTHROPIC_API_KEY` for Production
+   (and Preview if wanted), then redeploy (`vercel --prod`). Env changes apply only to new deployments.
+4. Check: `curl -s "$URL/api/agent/status"` returns `{"enabled":true,"model":"claude-opus-5-5",...}`, and
+   "Generate briefing" on the Decision Desk streams tool calls and ends in a risk-rated briefing.
+
+Docker: `ANTHROPIC_API_KEY=sk-ant-... docker compose up --build`.
 
 ## 1. Install tooling (once)
 
@@ -158,6 +178,7 @@ In an incognito window, without being logged in to Vercel or GitHub, check each 
 - [ ] The Accuracy view's KPI tiles, histogram and error-by-horizon chart render. Moving the horizon slider updates them.
 - [ ] Methodology page loads; reloading on a deep link (e.g. `$URL/accuracy`) still works.
 - [ ] `$URL/api/health` returns `{"status":"ok"}`.
+- [ ] `$URL/api/agent/status` shows `"enabled": true`; "Generate briefing" and "Ask the analyst" both stream and finish.
 - [ ] The browser dev tools Console shows no errors, and the Network tab shows no failed `/api` calls.
 - [ ] The GitHub repo URL opens while logged out, its name is random, and the README renders.
 - [ ] The README contains the live URL, the repo URL and the video link.
@@ -171,6 +192,11 @@ In an incognito window, without being logged in to Vercel or GitHub, check each 
 | `FileNotFoundError` for the snapshot | Set `SNAPSHOT_PATH` in Vercel → Settings → Environment Variables to `/var/task/backend/data/snapshot_jan2026.json.gz`, then redeploy. |
 | `ERR_PNPM_OUTDATED_LOCKFILE` | Run `pnpm install` in `frontend/` locally, commit `pnpm-lock.yaml`, then push again. |
 | Docker: frontend waits forever | The backend is unhealthy. Run `docker compose logs backend`; the cause is usually a startup import error. |
+| Analyst says "not configured" | `ANTHROPIC_API_KEY` is missing from the deployment. Add it in Vercel → Settings → Environment Variables and **redeploy**. |
+| Analyst error "API key was rejected" / "not allowed to use this model" | Wrong or revoked key, or the workspace cannot use `claude-opus-5-5`. Fix the key, or set `AGENT_MODEL` to a model the workspace can use. |
+| Analyst error "rejected the request" mentioning fallbacks | Set `AGENT_FALLBACKS=off` and redeploy. |
+| Briefing stops with "connection closed" | The function hit its time limit. Lower `AGENT_DEADLINE_S` (keep it ~20 s under `maxDuration`) or `AGENT_EFFORT=low`. If your Vercel plan caps functions at 60 s, set `maxDuration` to 60 in `vercel.json` and `AGENT_DEADLINE_S=50`. |
+| The trace and answer appear all at once instead of streaming | A proxy or platform is buffering the response. It still works; for nginx, keep the `/api/agent/` block with `proxy_buffering off`. |
 | Port 8080 is already in use | Stop the other process, or change the left-hand port of the frontend in `docker-compose.yml`. The backend publishes no host port; use `http://localhost:8080/api` (or `docker compose exec backend ...`). |
 
 Fallback if the `api/` function approach ever fails on Vercel: use [Vercel Services](https://vercel.com/docs/services), which is in beta. Define two services:

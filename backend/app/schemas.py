@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Health(BaseModel):
@@ -175,3 +176,55 @@ class HorizonCurvePoint(BaseModel):
     bias: float | None
     p90_abs_error: float | None
     n: int
+
+
+# ---------------------------------------------------------------- analyst agent
+
+AgentPage = Literal["decision", "accuracy", "methodology"]
+
+
+class AgentStatus(BaseModel):
+    enabled: bool
+    model: str
+    reason: str | None = None
+
+
+class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class AgentContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page: AgentPage | None = None
+    delivery_date: date | None = None
+    cutoff: str | None = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class ChatRequest(BaseModel):
+    """Text-only history kept by the browser. Tool calls are never accepted from the client: the
+    agent re-derives every number server-side, so a tampered history cannot inject fake data."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    messages: list[ChatMessage] = Field(min_length=1, max_length=20)
+    context: AgentContext | None = None
+
+    @model_validator(mode="after")
+    def _alternating(self) -> ChatRequest:
+        roles = [m.role for m in self.messages]
+        if roles[0] != "user" or roles[-1] != "user":
+            raise ValueError("conversation must start and end with a user message")
+        if any(a == b for a, b in zip(roles, roles[1:], strict=False)):
+            raise ValueError("messages must alternate between user and assistant")
+        return self
+
+
+class BriefingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_date: date
+    cutoff: str = Field("09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")

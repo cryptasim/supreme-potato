@@ -4,7 +4,9 @@ WindSight helps a UK utility's day-ahead power-buying team decide how much of to
 generation they can rely on. For each delivery day it shows the wind forecast the desk could actually
 have seen at its decision cut-off, how that forecast compared with metered outturn, and a P10/P90
 shortfall-risk band that turns January 2026's forecast errors into a concrete number: reliable wind at
-90% confidence, and the extra energy to procure on top of the raw forecast. It uses public Elexon BMRS
+90% confidence, and the extra energy to procure on top of the raw forecast. An **AI desk analyst** (a
+Claude agent with tool use) answers free-form questions over the same data and writes a pre-gate
+briefing that ends in a risk-rated, schema-validated cover recommendation. It uses public Elexon BMRS
 data only (WINDFOR forecasts and FUELHH wind outturn), with a React frontend and a FastAPI backend.
 
 ## Links
@@ -24,6 +26,9 @@ data only (WINDFOR forecasts and FUELHH wind outturn), with a React frontend and
 ![Forecast Accuracy](docs/screenshots/forecast-accuracy.png)
 
 **Methodology** — plain-English rules, data sources and limitations: [`docs/screenshots/methodology.png`](docs/screenshots/methodology.png).
+
+The AI briefing card and analyst panel need `ANTHROPIC_API_KEY` on the deployment; screenshots of real
+runs belong here once it is set.
 
 ## Key results (January 2026, delivery days 2 Jan to 1 Feb)
 
@@ -76,6 +81,37 @@ the cause. Plausible contributors:
 Next step: pull BOAL / bid-offer acceptance and constraint data for wind BM units and test whether
 accepted wind turn-down explains the gap hour by hour.
 
+## AI desk analyst (agentic layer)
+
+Full design, guardrails and test strategy: [`docs/AGENT.md`](docs/AGENT.md).
+
+- **Pre-gate briefing** (Decision Desk, one click). A Claude agent (`claude-opus-5-5`) plans its own
+  research, calls WindSight's data tools, and finishes by publishing a pydantic-validated briefing:
+  risk level, recommended extra to procure, the evidence, what to watch before the gate, and caveats.
+  The card shows the recommendation next to the standard P10 cover so the difference is explicit.
+- **Ask the analyst** (any page, `Ctrl K`). A chat panel that knows which day and cut-off you are
+  looking at. Answers stream in, with tables where useful.
+- **Auditable by design.** Every tool call, its input, timing and the exact JSON the model saw is shown
+  beside the answer, with token usage and cache hits per run. The model reasons; code computes.
+- **Honest about time.** The decision-time tool contains no actuals; hindsight comes from a separate,
+  labelled tool. A walk-forward tool uses only hours metered before the decision, so the agent can
+  challenge the in-sample band. For 15 Jan it implies 132.4 GWh of cover against the standard 99.7 GWh,
+  because forecasts ran 1.8 GW high the week before.
+- **Bounded.** At most 8 model turns and 100 s per run, rate limited per client, typed error handling,
+  and the dashboard never depends on it. With no API key the analyst switches itself off cleanly.
+
+| Tool | What it gives the agent |
+|---|---|
+| `get_decision_view` | Run used, forecast / P10 / extra GWh, peak and high-wind hours (no actuals) |
+| `get_trailing_performance` | Out-of-sample error and walk-forward band from hours metered before the decision |
+| `get_accuracy_summary` | January KPIs, shortfall quantiles, error by wind level, worst hours |
+| `get_lead_time_curve` | Error vs lead time 0–48 h |
+| `compare_cutoffs` | Run and P10 at several cut-offs, flags post-gate cut-offs |
+| `rank_days` | Best or worst days with energy totals |
+| `get_outturn` | Hindsight only: actual energy, MAE, misses, hours below P10 |
+| `get_dataset_overview` | Window, run schedule, gate times, headline accuracy |
+| `publish_briefing` | Briefing runs only: the validated structured deliverable |
+
 ## Domain decisions
 
 Full rules and JSON shapes live in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), the single source of truth.
@@ -117,6 +153,10 @@ flowchart LR
     M["metrics.py (stdlib stats)"] --> SVC
     SVC --> API["main.py (FastAPI /api/*)"]
     API --> FE["React SPA (Vite, React Query, Recharts)"]
+    SVC --> TOOLS["agent/tools.py (validated tools)"]
+    TOOLS --> RUN["agent/runner.py (tool-use loop, SSE events)"]
+    RUN <--> GW["agent/gateway.py"] <--> CL["Claude API (claude-opus-5-5)"]
+    RUN -->|"/api/agent/* (SSE)"| FE
     subgraph Hosting["Hosting"]
         D["Docker: nginx :8080 + uvicorn :8000"]
         V["Vercel: static CDN + api/index.py function"]
@@ -147,10 +187,11 @@ refresh swaps in a live pull without touching disk.
 │   │   ├── metrics.py            Pure stdlib stats: MAE, RMSE, bias, quantiles (numpy type 7), histogram, R², MAPE
 │   │   ├── data_store.py         Immutable in-memory store from the snapshot; atomic swap on live refresh
 │   │   ├── elexon.py             Thin httpx client for FUELHH / WINDFOR with retries and a hard deadline
-│   │   └── schemas.py            Pydantic response models (the API contract in code)
+│   │   ├── schemas.py            Pydantic request/response models (the API contract in code)
+│   │   └── agent/                AI desk analyst: tools, briefing schema, prompts, loop, gateway, rate limits
 │   ├── scripts/ingest.py         Pulls the January window from Elexon into the snapshot
 │   ├── data/snapshot_jan2026.json.gz   Committed data: 1,488 actuals, 19,856 forecast points, 272 runs
-│   ├── tests/                    pytest: selection boundaries, metrics, API contract, Elexon retry/deadline
+│   ├── tests/                    pytest: selection, metrics, API contract, Elexon client, agent loop/tools, SDK path
 │   ├── Dockerfile                python:3.12-slim, non-root, healthcheck, uvicorn
 │   ├── pyproject.toml            Ruff and pytest config
 │   └── requirements*.txt         Runtime and dev pins
@@ -158,11 +199,12 @@ refresh swaps in a live pull without touching disk.
 │   ├── src/
 │   │   ├── App.tsx               Routes: / (Decision Desk), /accuracy, /methodology
 │   │   ├── api/                  Typed fetch client, React Query hooks, TS types mirroring the contract
+│   │   ├── agent/                SSE parser, run reducer, agent hooks, conversation provider
 │   │   ├── pages/
 │   │   │   ├── DecisionDesk.tsx  Per-day view: run header, KPI tiles, forecast vs actual with P10–P90 band, hourly table
 │   │   │   ├── AccuracyPage.tsx  Month view: KPIs, insights, error vs lead time, histogram, by hour, daily MAE, by level, worst hours
 │   │   │   └── MethodologyPage.tsx  Plain-English rules, data sources, limitations
-│   │   ├── components/           charts/ (Recharts), decision/ (date stepper, cut-off control, table), accuracy/, layout/, ui/
+│   │   ├── components/           charts/ (Recharts), decision/, accuracy/, agent/ (briefing, analyst panel, trace), layout/, ui/
 │   │   ├── lib/                  cutoff.ts (run-for-cut-off logic), insights.ts (findings text), format.ts, window.ts
 │   │   └── test/                 Vitest setup and API fixtures
 │   ├── Dockerfile                Multi-stage: pnpm build, then nginx:1.27-alpine
@@ -171,6 +213,7 @@ refresh swaps in a live pull without touching disk.
 └── docs/
     ├── screenshots/              README screenshots (Decision Desk, Forecast Accuracy, Methodology)
     ├── API_CONTRACT.md           Domain rules and JSON shapes (single source of truth)
+    ├── AGENT.md                  AI analyst design: principles, tools, model config, guardrails, tests
     ├── DEPLOYMENT.md             Docker, GitHub and Vercel step by step, plus troubleshooting
     ├── HANDOFF.md                Project status and key decisions
     ├── SUBMISSION_CHECKLIST.md   Final pre-submission checks
@@ -185,6 +228,8 @@ refresh swaps in a live pull without touching disk.
 ```bash
 docker compose up --build
 ```
+
+To enable the AI analyst locally: `ANTHROPIC_API_KEY=sk-ant-... docker compose up --build`.
 
 Open http://localhost:8080. The API is reachable through nginx at http://localhost:8080/api (for example
 `curl -s localhost:8080/api/health`). Stop with `Ctrl-C`, then `docker compose down`.
@@ -244,10 +289,13 @@ All endpoints are under `/api` and return JSON. Bad parameters return 422.
 | `GET /api/accuracy?cutoff=HH:MM` or `?horizon_h=H` | Month KPIs, quantiles, histogram, by hour / horizon / day / level, worst hours |
 | `GET /api/horizon-curve` | MAE, RMSE, bias, P90 absolute error for each minimum lead time H = 0–48 h |
 | `POST /api/refresh` | Operator only (header `X-Refresh-Token`): reload the window from Elexon into memory |
+| `GET /api/agent/status` | Whether the analyst is enabled on this deployment, and its model |
+| `POST /api/agent/chat` | Analyst chat, streamed as server-sent events (tool calls, text, usage) |
+| `POST /api/agent/briefing` | Pre-gate briefing for a delivery day; streams research, then a validated briefing |
 
 ## Testing and quality
 
-- **Backend: 78 pytest tests** (`backend/tests/`), written test-first for the rules that matter:
+- **Backend: 125 pytest tests** (`backend/tests/`), written test-first for the rules that matter:
   - selection boundaries: a run published exactly at the cut-off is eligible, a run at or after the
     target hour is never used, a lead of exactly H hours counts while one just below falls back to an
     older run, and H = 0 still requires a positive lead;
@@ -255,9 +303,14 @@ All endpoints are under `/api` and return JSON. Bad parameters return 422.
     bins, R², MAPE skipping zero actuals;
   - API contract: shapes, defaults, 422 on bad input, CORS, refresh token and failure behaviour, the run
     used on 15 Jan, and an in-test brute-force recomputation of the accuracy figures;
-  - Elexon client retry and deadline behaviour without network access.
-- **Frontend: 37 Vitest tests** across 4 files: cut-off logic, insight sentences, formatting, and a
-  Decision Desk render test against fixtures that mirror the contract.
+  - Elexon client retry and deadline behaviour without network access;
+  - the analyst: every tool against the snapshot, loop semantics with a scripted model (parallel
+    results, repair of invalid input, no tools on truncated or refused turns, turn and time limits,
+    briefing validation), SSE/HTTP behaviour (422/429/503), rate limiting, and the real SDK path
+    against a mocked transport replaying Anthropic event streams. No test calls the real API.
+- **Frontend: 50 Vitest tests** across 5 files: cut-off logic, insight sentences, formatting, the SSE
+  parser (fuzzed across chunk boundaries), the run reducer, chat history, markdown, and Decision Desk
+  render tests including a streamed briefing.
 - **Independent numeric cross-check.** A separate pandas recomputation from the raw Elexon data
   reproduced the API's figures: 33 of 33 checked values matched. The script was a one-off and is not
   committed; adding it as a regression test is on the next-steps list.
@@ -278,8 +331,13 @@ All endpoints are under `/api` and return JSON. Bad parameters return 422.
 - Volumes only. Next: bring in day-ahead prices and demand to turn MWh of cover into expected cost.
 - Next: alert the desk when a fresh run moves the forecast by more than the P10 cover before the gate.
 - Next: commit the pandas cross-check as a regression test.
+- Analyst: an eval set of desk questions with checkable answers; persist briefings and score the agent's
+  recommended cover against outturn; re-run the briefing automatically when a new run lands before the gate.
 
 ## AI tools used
+
+The app also uses Claude **at runtime**: the AI desk analyst calls the Anthropic API (`claude-opus-5-5`)
+when `ANTHROPIC_API_KEY` is configured. See [`docs/AGENT.md`](docs/AGENT.md).
 
 This application was built with **Claude Code (Anthropic)**, using multi-agent workflows for
 implementation, for independent numeric verification (a separate agent recomputed the statistics from
