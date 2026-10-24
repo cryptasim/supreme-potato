@@ -21,3 +21,4 @@ dist/
 
 # Local Claude settings
 .claude/
+.vercel

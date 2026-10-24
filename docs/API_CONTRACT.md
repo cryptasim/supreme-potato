@@ -37,9 +37,9 @@ All endpoints are `GET`, return JSON, and live under `/api`. Times are ISO‑860
   "delivery_from": "2026-01-02", "delivery_to": "2026-02-01",
   "decision_from": "2026-01-01", "decision_to": "2026-01-31",
   "default_cutoff": "09:00",
-  "forecast_runs": 264,
+  "forecast_runs": 272,
   "forecast_run_times_utc": ["02:30","04:30","07:30","09:30","11:30","15:30","18:30","22:30"],
-  "actual_points": 1488, "forecast_points": 19272,
+  "actual_points": 1488, "forecast_points": 19856,
   "data_mode": "snapshot"          // or "live" after /api/refresh
 }
 ```
@@ -60,7 +60,9 @@ All endpoints are `GET`, return JSON, and live under `/api`. Times are ISO‑860
   "summary": {
     "forecast_mwh": 300000.0, "actual_mwh": 290000.0,   // sum over hours of MW × 1h (null-safe; only hours with value)
     "p10_mwh": 260000.0, "extra_to_procure_mwh": 40000.0,  // sum(forecast − p10)
-    "mae": 800.0, "bias": 120.0, "max_abs_error": 2500.0, "n": 24
+    "mae": 800.0, "bias": 120.0, "max_abs_error": 2500.0,
+    "n": 24,                 // hours with both forecast and actual (used for mae/bias)
+    "forecast_hours": 24     // hours with a selected forecast (0..24), whether or not an actual exists
   },
   "band": {"q10": -2100.0, "q50": 50.0, "q90": 1900.0}   // MW, of actual − forecast
 }
@@ -103,6 +105,17 @@ Error vs lead time across the full forecast set: for H in 0..48 step 1 (horizon 
 
 ### `POST /api/refresh`
 Re‑fetch the window from Elexon into the in‑memory store (read‑only FS on Vercel). Returns `/api/meta`.
-On failure returns 502 with `{"detail": "..."}` and keeps snapshot data.
+Operator-only:
+- Requires header `X-Refresh-Token` equal to env `REFRESH_TOKEN`. If `REFRESH_TOKEN` is unset the
+  endpoint returns 403 `{"detail":"refresh disabled"}`; a missing/wrong token returns 403.
+- CORS allows only `GET`, so browsers cannot call it cross-origin (use curl).
+- Bounded: both Elexon calls including retries share a 45 s deadline (per-call timeout ≤ 20 s, short
+  backoff), inside Vercel's 60 s `maxDuration`.
+- On failure returns 502 with `{"detail": "..."}` and keeps the current data. On success all cached
+  payloads are cleared.
+
+Snapshot/refresh window: actuals for settlement dates 2026‑01‑02..2026‑02‑01; forecasts published
+2025‑12‑30T00:00Z..2026‑02‑01T23:00Z (the end covers runs published on the last delivery day, which
+horizon mode needs for small H).
 
 Errors: FastAPI default `{"detail": ...}` with 422 for bad params.

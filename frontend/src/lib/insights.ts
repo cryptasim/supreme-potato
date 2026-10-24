@@ -5,6 +5,8 @@
 import type { ByHour, ErrorQuantiles, HorizonCurvePoint } from '../api/types';
 import { fmtGW, fmtPower, fmtUtcTime } from './format';
 
+const isNum = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
+
 export interface Insight {
   id: string;
   headline: string;
@@ -17,20 +19,24 @@ export interface Insight {
  * *below* forecast, which is the shortfall the desk must cover.
  */
 export function bandInsight(q: ErrorQuantiles | undefined, context: string): Insight | null {
-  if (!q || !Number.isFinite(q.q10) || !Number.isFinite(q.q90)) return null;
-  const below = Math.max(0, -q.q10);
-  const above = Math.max(0, q.q90);
-  return {
-    id: 'band',
-    headline: `80% of the time, actual wind lands between ${fmtGW(below)} below and ${fmtGW(above)} above the forecast`,
-    detail: `${context}. In 1 hour in 10, wind falls short of forecast by more than ${fmtGW(below)}. That is the cover to hold for 90% confidence.`,
-    tone: 'risk',
-  };
+  if (!q || !isNum(q.q10) || !isNum(q.q90)) return null;
+  const { q10, q90 } = q;
+  const describe = (v: number) => (v < 0 ? `${fmtGW(-v)} below` : `${fmtGW(v)} above`);
+  // With a strong over-forecast bias both quantiles can be negative: say "between X and Y below".
+  const headline =
+    q10 < 0 && q90 < 0
+      ? `80% of the time, actual wind lands between ${fmtGW(-q90)} and ${fmtGW(-q10)} below the forecast`
+      : `80% of the time, actual wind lands between ${describe(q10)} and ${describe(q90)} the forecast`;
+  const detail =
+    q10 < 0
+      ? `${context}. In 1 hour in 10, wind falls short of forecast by more than ${fmtGW(-q10)}. That is the cover to hold for 90% confidence.`
+      : `${context}. Even the low (P10) outcome is at or above the forecast, so no extra cover is indicated.`;
+  return { id: 'band', headline, detail, tone: 'risk' };
 }
 
 /** Bias = mean(forecast − actual). Positive = over-forecast = wind tends to come in short. */
 export function biasInsight(bias: number | undefined | null): Insight | null {
-  if (bias === undefined || bias === null || !Number.isFinite(bias)) return null;
+  if (!isNum(bias)) return null;
   if (Math.abs(bias) < 50) {
     return {
       id: 'bias',
@@ -68,11 +74,12 @@ export function horizonInsight(curve: HorizonCurvePoint[] | undefined, fromH = 2
   };
 }
 
-/** The hour of day with the largest MAE. */
+/** The hour of day with the largest MAE. Hours without an MAE (no matched data) are skipped. */
 export function worstHourInsight(byHour: ByHour[] | undefined): Insight | null {
-  if (!byHour?.length) return null;
-  const worst = byHour.reduce((a, b) => (b.mae > a.mae ? b : a));
-  const best = byHour.reduce((a, b) => (b.mae < a.mae ? b : a));
+  const rows = (byHour ?? []).filter((h): h is ByHour & { mae: number } => isNum(h.mae));
+  if (!rows.length) return null;
+  const worst = rows.reduce((a, b) => (b.mae > a.mae ? b : a));
+  const best = rows.reduce((a, b) => (b.mae < a.mae ? b : a));
   const hh = (h: number) => fmtUtcTime(`2026-01-01T${String(h).padStart(2, '0')}:00:00Z`);
   return {
     id: 'hour',

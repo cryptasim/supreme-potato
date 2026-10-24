@@ -1,7 +1,7 @@
 import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { HorizonCurvePoint } from '../../api/types';
-import { fmtPower, gwTick, niceTicks } from '../../lib/format';
+import { fmtPower, fmtSignedPower, gwTick, niceTicks } from '../../lib/format';
 import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, xLabel, yLabel } from './common';
 
 interface Props {
@@ -34,7 +34,7 @@ export function HorizonCurveChart({ curve, selectedH = null, decisionRange = nul
               domain={[0, 48]}
               ticks={[0, 6, 12, 18, 24, 30, 36, 42, 48]}
               {...AXIS_PROPS}
-              label={xLabel('Lead time: hours between forecast publication and target hour')}
+              label={xLabel('Lead time: hours from publication to target hour')}
             />
             <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} ticks={ticks} domain={[0, ticks[ticks.length - 1]]} label={yLabel('Error (GW)')} />
             <Tooltip content={<CurveTooltip />} cursor={{ stroke: 'var(--axis)' }} />
@@ -74,7 +74,7 @@ function CurveTooltip({ active, payload }: TooltipProps<number, string>) {
         { label: 'MAE', value: fmtPower(p.mae), color: 'var(--metric)' },
         { label: 'P90 |error|', value: fmtPower(p.p90_abs_error), color: 'var(--risk)' },
         { label: 'RMSE', value: fmtPower(p.rmse) },
-        { label: 'Bias', value: fmtPower(p.bias) },
+        { label: 'Bias', value: fmtSignedPower(p.bias) },
       ]}
       footer={`${p.n} hours`}
     />

@@ -42,13 +42,16 @@ export interface DecisionSummary {
   mae: number | null;
   bias: number | null;
   max_abs_error: number | null;
+  /** Hours with both a forecast and an actual (basis of mae/bias). */
   n: number;
+  /** Hours with a forecast (basis of forecast_mwh / p10_mwh / extra_to_procure_mwh). */
+  forecast_hours: number;
 }
 
 export interface ErrorBand {
-  q10: number;
-  q50: number;
-  q90: number;
+  q10: number | null;
+  q50: number | null;
+  q90: number | null;
 }
 
 export interface DecisionResponse {
@@ -80,29 +83,29 @@ export interface SeriesResponse {
 }
 
 export interface AccuracyKpis {
-  mae: number;
-  rmse: number;
-  bias: number;
+  mae: number | null;
+  rmse: number | null;
+  bias: number | null;
   mape_pct: number | null;
-  nmae_pct: number;
-  p50_abs_error: number;
-  p90_abs_error: number;
-  p99_abs_error: number;
-  max_abs_error: number;
-  mean_actual: number;
-  r2: number;
+  nmae_pct: number | null;
+  p50_abs_error: number | null;
+  p90_abs_error: number | null;
+  p99_abs_error: number | null;
+  max_abs_error: number | null;
+  mean_actual: number | null;
+  r2: number | null;
 }
 
 export interface ErrorQuantiles {
-  q01: number;
-  q05: number;
-  q10: number;
-  q25: number;
-  q50: number;
-  q75: number;
-  q90: number;
-  q95: number;
-  q99: number;
+  q01: number | null;
+  q05: number | null;
+  q10: number | null;
+  q25: number | null;
+  q50: number | null;
+  q75: number | null;
+  q90: number | null;
+  q95: number | null;
+  q99: number | null;
 }
 
 export interface HistogramBin {
@@ -113,16 +116,16 @@ export interface HistogramBin {
 
 export interface ByHour {
   hour: number;
-  mae: number;
-  bias: number;
+  mae: number | null;
+  bias: number | null;
   n: number;
 }
 
 export interface ByHorizon {
   horizon_h: number;
-  mae: number;
-  bias: number;
-  rmse: number;
+  mae: number | null;
+  bias: number | null;
+  rmse: number | null;
   n: number;
 }
 
@@ -136,8 +139,8 @@ export interface ByDay {
 
 export interface ByLevel {
   bucket: string;
-  mae: number;
-  bias: number;
+  mae: number | null;
+  bias: number | null;
   n: number;
 }
 

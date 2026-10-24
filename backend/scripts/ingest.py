@@ -16,10 +16,11 @@ from app.elexon import fetch_actuals, fetch_forecasts
 
 DELIVERY_FROM = "2026-01-02"
 DELIVERY_TO = "2026-02-01"
-# Forecasts published up to the last decision day; start a little early so that every
-# delivery hour has its full set of earlier runs available (max horizon ~57.5h).
+# Start a little early so that every delivery hour has its full set of earlier runs available
+# (max horizon ~57.5h). End on the last delivery day itself (not at its midnight): horizon mode
+# with small H needs the runs published during 2026-02-01, or its hours fall back to stale runs.
 FORECAST_PUBLISH_FROM = "2025-12-30T00:00:00Z"
-FORECAST_PUBLISH_TO = "2026-02-01T00:00:00Z"
+FORECAST_PUBLISH_TO = "2026-02-01T23:00:00Z"
 
 OUT = Path(__file__).resolve().parents[1] / "data" / "snapshot_jan2026.json.gz"
 

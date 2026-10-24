@@ -14,10 +14,11 @@ describe('runForCutoff', () => {
 });
 
 describe('cut-off options', () => {
-  it('offers 48 half-hourly options labelled with their run', () => {
+  it('offers 48 half-hourly options labelled with their nominal run', () => {
     const opts = buildCutoffOptions();
     expect(opts).toHaveLength(48);
-    expect(opts.find((o) => o.value === '09:00')?.label).toBe('09:00 · uses 07:30 run');
+    expect(opts.find((o) => o.value === '09:00')?.label).toBe('09:00 · uses ~07:30 run (nominal)');
+    expect(opts.find((o) => o.value === '01:00')?.label).toBe('01:00 · uses ~22:30 D-2 run (nominal)');
   });
   it('validates HH:MM', () => {
     expect(isValidCutoff('09:45')).toBe(true);

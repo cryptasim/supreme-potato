@@ -24,7 +24,7 @@ export function CutoffControl({ value, onChange, runTimes, id = 'cutoff' }: Cuto
   }, [runTimes, value]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-1">
+    <div className="flex min-w-0 max-w-full flex-col gap-1">
       <label htmlFor={id} className="text-xs font-medium text-ink2">
         Decision cut-off on D-1 (UTC)
       </label>
@@ -33,7 +33,7 @@ export function CutoffControl({ value, onChange, runTimes, id = 'cutoff' }: Cuto
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="tabular h-9 rounded-lg border border-line bg-surface px-2 text-sm text-ink"
+          className="tabular h-9 min-w-0 max-w-full rounded-lg border border-line bg-surface px-2 text-sm text-ink"
         >
           {options.map((o) => (
             <option key={o.value} value={o.value}>

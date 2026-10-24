@@ -11,6 +11,12 @@ import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, xLabel, yLabel } from
 export function HistogramChart({ bins, height = 260 }: { bins: HistogramBin[]; height?: number }) {
   const total = bins.reduce((a, b) => a + b.count, 0) || 1;
   const rows = bins.map((b) => ({ ...b, mid: (b.bin_start + b.bin_end) / 2, share: (b.count / total) * 100 }));
+  // Whole-GW ticks across the bin range (bins are 0.5 GW, so the axis spans bin edges exactly).
+  const lo = bins.length ? bins[0].bin_start : -1000;
+  const hi = bins.length ? bins[bins.length - 1].bin_end : 1000;
+  const step = hi - lo > 9000 ? 2000 : 1000;
+  const xTicks: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) xTicks.push(v);
 
   return (
     <div className="flex flex-col gap-3">
@@ -27,7 +33,8 @@ export function HistogramChart({ bins, height = 260 }: { bins: HistogramBin[]; h
             <XAxis
               dataKey="mid"
               type="number"
-              domain={['dataMin - 250', 'dataMax + 250']}
+              domain={[lo, hi]}
+              ticks={xTicks}
               {...AXIS_PROPS}
               tickFormatter={gwTick}
               label={xLabel('Error, forecast − actual (GW)')}

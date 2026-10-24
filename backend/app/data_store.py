@@ -11,6 +11,7 @@ import gzip
 import json
 import os
 import threading
+import time
 from bisect import bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -25,9 +26,13 @@ from app.selection import ForecastIndex, build_forecast_index, format_ts, parse_
 DECISION_FROM, DECISION_TO = date(2026, 1, 1), date(2026, 1, 31)
 DELIVERY_FROM, DELIVERY_TO = date(2026, 1, 2), date(2026, 2, 1)
 DEFAULT_CUTOFF = "09:00"
-# Mirrors scripts/ingest.py: start early enough that every delivery hour has its full set of runs.
+# Mirrors scripts/ingest.py: start early enough that every delivery hour has its full set of runs, and
+# end late on the last delivery day so short-horizon selections for 2026-02-01 get the fresh runs.
 FORECAST_PUBLISH_FROM = "2025-12-30T00:00:00Z"
-FORECAST_PUBLISH_TO = "2026-02-01T00:00:00Z"
+FORECAST_PUBLISH_TO = "2026-02-01T23:00:00Z"
+
+# Whole live refresh (both Elexon calls incl. retries) must finish well inside Vercel's maxDuration=60s.
+REFRESH_DEADLINE_S = 45.0
 
 SNAPSHOT_PATH = Path(
     os.environ.get("SNAPSHOT_PATH", Path(__file__).resolve().parents[1] / "data" / "snapshot_jan2026.json.gz")
@@ -113,8 +118,9 @@ def get_store() -> DataStore:
 def refresh_from_elexon() -> DataStore:
     """Re-fetch the window live from Elexon and swap it in. Raises on failure; old data is kept."""
     global _current
-    actuals = fetch_actuals(DELIVERY_FROM.isoformat(), DELIVERY_TO.isoformat())
-    forecasts = fetch_forecasts(FORECAST_PUBLISH_FROM, FORECAST_PUBLISH_TO)
+    deadline = time.monotonic() + REFRESH_DEADLINE_S
+    actuals = fetch_actuals(DELIVERY_FROM.isoformat(), DELIVERY_TO.isoformat(), deadline)
+    forecasts = fetch_forecasts(FORECAST_PUBLISH_FROM, FORECAST_PUBLISH_TO, deadline)
     if not actuals or not forecasts:
         raise RuntimeError("Elexon returned no data for the window")
     fresh = DataStore.build(

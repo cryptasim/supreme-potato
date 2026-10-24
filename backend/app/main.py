@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hmac
+import os
 from datetime import date
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import data_store, service
@@ -19,8 +21,9 @@ app = FastAPI(
     description="Day-ahead wind forecast vs outturn (Elexon BMRS WINDFOR / FUELHH), January 2026.",
     version="1.0.0",
 )
-# Read-only public data: any origin may read it. POST is allowed only for the manual refresh.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"])
+# Read-only public data: any origin may read it. Cross-origin POST (refresh) is not allowed; the
+# refresh endpoint is for operators (curl) and is additionally guarded by a shared token.
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 CutoffQuery = Query(None, pattern=CUTOFF_PATTERN, description="Decision cut-off on D-1, HH:MM UTC")
 HorizonQuery = Query(None, ge=0, le=48, description="Minimum forecast lead time in hours")
@@ -85,11 +88,24 @@ def horizon_curve(actual_mode: ActualMode = ActualModeQuery) -> list[dict]:
     return service.horizon_curve(data_store.get_store(), actual_mode)
 
 
+def _check_refresh_token(supplied: str | None) -> None:
+    expected = os.environ.get("REFRESH_TOKEN")
+    if not expected:
+        raise HTTPException(403, "refresh disabled")
+    if supplied is None or not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(403, "invalid or missing X-Refresh-Token")
+
+
 @app.post("/api/refresh", response_model=s.Meta)
-def refresh() -> dict:
-    """Re-pull the window from Elexon into memory. On any failure the current data is kept."""
+def refresh(x_refresh_token: str | None = Header(None)) -> dict:
+    """Re-pull the window from Elexon into memory. On any failure the current data is kept.
+
+    Requires header ``X-Refresh-Token`` equal to env ``REFRESH_TOKEN``; disabled (403) when unset.
+    """
+    _check_refresh_token(x_refresh_token)
     try:
         store = data_store.refresh_from_elexon()
     except Exception as exc:  # any upstream failure (network, HTTP, bad payload) maps to 502
         raise HTTPException(502, f"Refresh from Elexon failed: {exc}") from exc
+    service.clear_caches()
     return service.meta(store)

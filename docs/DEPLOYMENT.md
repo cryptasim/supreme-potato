@@ -12,7 +12,7 @@ cd "/Users/asimkumarhansda/Desktop/TAKE HOME ASSIGNMENTS/GRIDBRICKS"
 | Environment | Frontend | API | Snapshot data |
 |---|---|---|---|
 | Local dev | `pnpm dev` (Vite, :5173, proxies `/api`) | `uvicorn app.main:app` (:8000) | `backend/data/snapshot_jan2026.json.gz` |
-| Docker | nginx :8080 serves `dist/`, proxies `/api/` → `backend:8000` | uvicorn in `python:3.12-slim`, non-root | copied to `/app/data/` |
+| Docker | nginx :8080 serves `dist/`, proxies `/api/` → `backend:8000` | uvicorn in `python:3.12-slim`, non-root; port 8000 is only on the compose network (reach the API via `http://localhost:8080/api`) | copied to `/app/data/` |
 | Vercel | static `frontend/dist` on the CDN | `api/index.py` (Python 3.12 function) re-exports `backend/app/main.py:app` | bundled via `functions.includeFiles` |
 
 `vercel.json` has two rewrites, applied in order:
@@ -22,10 +22,20 @@ cd "/Users/asimkumarhansda/Desktop/TAKE HOME ASSIGNMENTS/GRIDBRICKS"
 
 Vercel serves a real static file in preference to a rewrite.
 
-Environment variable: `SNAPSHOT_PATH` gives the absolute path of the snapshot.
+Environment variables:
 
-- The Docker image and `api/index.py` set it automatically.
-- You only need to set it yourself if you move the data file.
+- `SNAPSHOT_PATH` gives the absolute path of the snapshot. The Docker image and `api/index.py` set it
+  automatically; you only need to set it yourself if you move the data file.
+- `REFRESH_TOKEN` (optional) enables `POST /api/refresh`. Unset means the endpoint returns 403
+  "refresh disabled". To enable it, set a long random value (Vercel → Settings → Environment Variables,
+  or `REFRESH_TOKEN=... docker compose up`) and call:
+
+  ```bash
+  curl -s -X POST -H "X-Refresh-Token: $REFRESH_TOKEN" "$URL/api/refresh" | head -c 400
+  ```
+
+  The refresh finishes or fails (502, snapshot kept) within ~45 s, inside the 60 s function limit.
+  CORS allows only `GET`, so browsers on other origins cannot trigger it.
 
 ## 1. Install tooling (once)
 
@@ -53,8 +63,8 @@ docker compose up --build
 In a second terminal:
 
 ```bash
-curl -s localhost:8000/api/health                          # {"status":"ok"}
-curl -s localhost:8080/api/meta | head -c 400              # same API, via nginx
+curl -s localhost:8080/api/health                          # {"status":"ok"}
+curl -s localhost:8080/api/meta | head -c 400              # the backend is reachable only via nginx
 curl -s "localhost:8080/api/decision?delivery_date=2026-01-15&cutoff=09:00" | head -c 400
 open http://localhost:8080                                 # UI
 docker compose ps                                          # backend should be "healthy"
@@ -133,11 +143,12 @@ Set `URL` to the production URL that `vercel --prod` printed, for example `https
 ```bash
 URL=https://<your-project>.vercel.app
 curl -s  "$URL/api/health"                                              # {"status":"ok"}
-curl -s  "$URL/api/meta" | head -c 400                                  # actual_points 1488, forecast_points 19272
+curl -s  "$URL/api/meta" | head -c 400                                  # actual_points 1488, forecast_points 19856
 curl -s  "$URL/api/decision?delivery_date=2026-01-15&cutoff=09:00" | head -c 400   # forecast_run 2026-01-14T07:30:00Z
 curl -s  "$URL/api/accuracy?cutoff=09:00" | head -c 300                 # "n": 744
 curl -s -o /dev/null -w "%{http_code}\n" "$URL/api/decision?delivery_date=2025-12-01"   # 422
 curl -s -o /dev/null -w "%{http_code}\n" "$URL/accuracy"                # 200 (SPA fallback)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "$URL/api/refresh"     # 403 (no/invalid token)
 ```
 
 In an incognito window, without being logged in to Vercel or GitHub, check each of the following:
@@ -160,7 +171,7 @@ In an incognito window, without being logged in to Vercel or GitHub, check each 
 | `FileNotFoundError` for the snapshot | Set `SNAPSHOT_PATH` in Vercel → Settings → Environment Variables to `/var/task/backend/data/snapshot_jan2026.json.gz`, then redeploy. |
 | `ERR_PNPM_OUTDATED_LOCKFILE` | Run `pnpm install` in `frontend/` locally, commit `pnpm-lock.yaml`, then push again. |
 | Docker: frontend waits forever | The backend is unhealthy. Run `docker compose logs backend`; the cause is usually a startup import error. |
-| Port 8000 or 8080 is already in use | Stop the other process, or change the left-hand port in `docker-compose.yml`. |
+| Port 8080 is already in use | Stop the other process, or change the left-hand port of the frontend in `docker-compose.yml`. The backend publishes no host port; use `http://localhost:8080/api` (or `docker compose exec backend ...`). |
 
 Fallback if the `api/` function approach ever fails on Vercel: use [Vercel Services](https://vercel.com/docs/services), which is in beta. Define two services:
 

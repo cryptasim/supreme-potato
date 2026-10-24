@@ -45,13 +45,17 @@ export function runForCutoff(cutoff: string, runTimes: string[] = DEFAULT_RUN_TI
   return { run: sorted[sorted.length - 1], previousDay: true };
 }
 
-/** Half-hourly cut-off options for the free select, each labelled with the run it would use. */
+/**
+ * Half-hourly cut-off options for the free select, each labelled with the run it would use.
+ * The run is inferred from the nominal publication schedule ("~"): a late or missing run in the
+ * data can make the API pick an earlier one, which the run header then reports exactly.
+ */
 export function buildCutoffOptions(runTimes: string[] = DEFAULT_RUN_TIMES): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
   for (let m = 0; m < 24 * 60; m += 30) {
     const value = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     const { run, previousDay } = runForCutoff(value, runTimes);
-    out.push({ value, label: `${value} · uses ${run} run${previousDay ? ' (D-2)' : ''}` });
+    out.push({ value, label: `${value} · uses ~${run}${previousDay ? ' D-2' : ''} run (nominal)` });
   }
   return out;
 }

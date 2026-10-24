@@ -13,13 +13,8 @@ import { Panel } from '../components/ui/Panel';
 import { Segmented } from '../components/ui/Segmented';
 import { ChartSkeleton, KpiSkeletonRow, Skeleton } from '../components/ui/Skeleton';
 import { DEFAULT_CUTOFF, isValidCutoff } from '../lib/cutoff';
-import { clampDate, fmtGWh, fmtLongDate, fmtPower, fmtSignedPower, isValidYmd } from '../lib/format';
-import { DEFAULT_DELIVERY_DATE, DELIVERY_FROM, DELIVERY_TO } from '../lib/window';
-
-export const ACTUAL_MODE_OPTIONS: { value: ActualMode; label: string; title: string }[] = [
-  { value: 'point', label: 'Settlement point', title: 'FUELHH value at the hour start' },
-  { value: 'hourly_mean', label: 'Hourly mean', title: 'Mean of the two half-hours in the hour' },
-];
+import { clampDate, fmtGW, fmtGWh, fmtLongDate, fmtPower, fmtSignedPower, isValidYmd } from '../lib/format';
+import { ACTUAL_MODE_OPTIONS, DEFAULT_DELIVERY_DATE, DELIVERY_FROM, DELIVERY_TO } from '../lib/window';
 
 /**
  * Purpose 1: for a delivery day, show the forecast the desk had at its cut-off, how much wind
@@ -50,7 +45,7 @@ export function DecisionDesk() {
     <div className="flex flex-col gap-5">
       <PageIntro />
 
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 rounded-xl border border-line bg-surface px-5 py-4 shadow-card">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 rounded-xl border border-line bg-surface px-4 py-4 shadow-card sm:px-5">
         <DateStepper value={date} min={min} max={max} onChange={(d) => update({ date: d })} />
         <CutoffControl value={cutoff} onChange={(c) => update({ cutoff: c })} runTimes={meta.data?.forecast_run_times_utc} />
         <Segmented
@@ -91,6 +86,8 @@ function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean })
   const s = data.summary;
   const extraShare =
     s.extra_to_procure_mwh !== null && s.forecast_mwh ? (s.extra_to_procure_mwh / s.forecast_mwh) * 100 : null;
+  // Energy totals cover hours with a forecast; `n` only counts hours that also have an actual.
+  const forecastHours = s.forecast_hours ?? data.points.filter((p) => p.forecast !== null).length;
 
   return (
     <>
@@ -104,13 +101,13 @@ function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean })
             label="Forecast wind energy"
             swatch="forecast"
             value={fmtGWh(s.forecast_mwh)}
-            note={`Delivery day total over ${s.n} hours with a forecast`}
+            note={`Delivery day total over ${forecastHours} hours with a forecast`}
           />
           <KpiTile
             label="Reliable wind at 90% (P10)"
             swatch="risk"
             value={fmtGWh(s.p10_mwh)}
-            note="Energy you can count on 9 days in 10"
+            note="Sum of hourly P10s: each hour has a 90% chance of at least this much wind"
           />
           <KpiTile
             label="Extra to procure vs forecast"
@@ -118,8 +115,8 @@ function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean })
             emphasis
             value={fmtGWh(s.extra_to_procure_mwh)}
             note={
-              extraShare !== null
-                ? `${extraShare.toFixed(0)}% of forecast energy. Cover from thermal or the market.`
+              extraShare !== null && s.extra_to_procure_mwh !== null && forecastHours > 0
+                ? `≈ ${fmtGW(s.extra_to_procure_mwh / forecastHours)} per hour, ${extraShare.toFixed(0)}% of forecast. Cover from thermal or the market.`
                 : 'Forecast minus P10, summed over the day'
             }
           />
@@ -129,7 +126,7 @@ function DecisionBody({ data, busy }: { data: DecisionResponse; busy: boolean })
             value={fmtPower(s.mae)}
             note={
               s.actual_mwh !== null
-                ? `Actual ${fmtGWh(s.actual_mwh)} · bias ${fmtSignedPower(s.bias)}`
+                ? `Actual ${fmtGWh(s.actual_mwh)} · bias ${fmtSignedPower(s.bias)} · ${s.n} hours with forecast and actual`
                 : 'Actuals not yet available'
             }
           />

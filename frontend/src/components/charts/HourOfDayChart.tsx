@@ -8,8 +8,8 @@ import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, UTC_AXIS_TITLE, xLabe
 export function HourOfDayChart({ data, height = 260 }: { data: ByHour[]; height?: number }) {
   const rows = data.map((d) => ({ ...d, label: String(d.hour).padStart(2, '0') }));
   const ticks = niceTicksSigned(
-    Math.min(0, ...data.map((d) => d.bias)),
-    Math.max(0, ...data.map((d) => Math.max(d.mae, d.bias))) * 1.04,
+    Math.min(0, ...data.map((d) => d.bias ?? 0)),
+    Math.max(0, ...data.map((d) => Math.max(d.mae ?? 0, d.bias ?? 0))) * 1.04,
   );
   return (
     <div className="flex flex-col gap-3">

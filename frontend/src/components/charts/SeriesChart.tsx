@@ -47,6 +47,18 @@ export function SeriesChart({ data, height = 340 }: { data: SeriesResponse; heig
     () => niceTicks(Math.max(0, ...rows.map((r) => Math.max(r.forecast ?? 0, r.actual ?? 0))) * 1.04),
     [rows],
   );
+  // One tick per UTC midnight (thinned to ≤ 10), so dates never repeat or land mid-day.
+  const dayTicks = useMemo(() => {
+    if (!rows.length) return [];
+    const DAY = 86_400_000;
+    const first = Math.ceil(rows[0].ts / DAY) * DAY;
+    const last = rows[rows.length - 1].ts;
+    const days = Math.floor((last - first) / DAY) + 1;
+    const every = Math.max(1, Math.ceil(days / 10));
+    const out: number[] = [];
+    for (let t = first; t <= last; t += every * DAY) out.push(t);
+    return out;
+  }, [rows]);
   const fmtTick = (ts: number) => fmtUtcDate(new Date(ts).toISOString());
 
   return (
@@ -59,7 +71,7 @@ export function SeriesChart({ data, height = 340 }: { data: SeriesResponse; heig
       />
       <div role="img" aria-label="Forecast versus actual wind generation over the selected dates" style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 8, left: 8 }} accessibilityLayer>
+          <ComposedChart data={rows} margin={{ top: 8, right: 12, bottom: 4, left: 8 }} accessibilityLayer>
             <CartesianGrid {...GRID_PROPS} />
             <XAxis
               dataKey="ts"
@@ -67,10 +79,10 @@ export function SeriesChart({ data, height = 340 }: { data: SeriesResponse; heig
               scale="time"
               domain={['dataMin', 'dataMax']}
               {...AXIS_PROPS}
+              ticks={dayTicks}
               tickFormatter={fmtTick}
-              minTickGap={28}
-              label={xLabel(`Date, ${UTC_AXIS_TITLE}`)}
-              height={40}
+              label={{ ...xLabel(`Date (00:00), ${UTC_AXIS_TITLE}`), offset: 6 }}
+              height={44}
             />
             <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} ticks={ticks} domain={[0, ticks[ticks.length - 1]]} label={yLabel('Wind generation (GW)')} />
             <Tooltip content={<SeriesTooltip />} cursor={{ stroke: 'var(--axis)' }} />

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAccuracy, useHorizonCurve, useMeta, useSeries } from '../api/hooks';
 import type { AccuracyResponse, ActualMode, SelectionParams } from '../api/types';
@@ -20,8 +20,7 @@ import { DEFAULT_CUTOFF, isValidCutoff } from '../lib/cutoff';
 import { addDays, clampDate, fmtNumber, fmtPct, fmtPower, fmtSignedPower, isValidYmd } from '../lib/format';
 import { bandInsight, biasInsight, horizonInsight, worstHourInsight, type Insight } from '../lib/insights';
 import { useDebounced } from '../lib/useDebounced';
-import { DELIVERY_FROM, DELIVERY_TO } from '../lib/window';
-import { ACTUAL_MODE_OPTIONS } from './DecisionDesk';
+import { ACTUAL_MODE_OPTIONS, DELIVERY_FROM, DELIVERY_TO } from '../lib/window';
 
 type Mode = 'cutoff' | 'horizon';
 
@@ -37,7 +36,7 @@ export function AccuracyPage() {
 
   const mode: Mode = params.get('mode') === 'horizon' ? 'horizon' : 'cutoff';
   const rawCutoff = params.get('cutoff');
-  const cutoff = isValidCutoff(rawCutoff) ? rawCutoff : DEFAULT_CUTOFF;
+  const cutoff = isValidCutoff(rawCutoff) ? rawCutoff : (meta.data?.default_cutoff ?? DEFAULT_CUTOFF);
   const urlH = Number(params.get('h'));
   const committedH = Number.isInteger(urlH) && urlH >= 0 && urlH <= 48 && params.has('h') ? urlH : 24;
   const actualMode: ActualMode = params.get('actual') === 'hourly_mean' ? 'hourly_mean' : 'point';
@@ -45,6 +44,8 @@ export function AccuracyPage() {
   // The slider moves a local value; the URL (and therefore the query) follows after a pause.
   const [sliderH, setSliderH] = useState(committedH);
   const horizonH = useDebounced(sliderH, 250);
+  // Follow the URL when it changes underneath us (back/forward, a pasted or in-app link).
+  useEffect(() => setSliderH(committedH), [committedH]);
 
   const update = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params);
@@ -71,7 +72,7 @@ export function AccuracyPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 rounded-xl border border-line bg-surface px-5 py-4 shadow-card">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 rounded-xl border border-line bg-surface px-4 py-4 shadow-card sm:px-5">
         <Segmented
           label="Select forecasts by"
           value={mode}
@@ -84,7 +85,7 @@ export function AccuracyPage() {
         {mode === 'cutoff' ? (
           <CutoffControl id="acc-cutoff" value={cutoff} onChange={(c) => update({ cutoff: c })} runTimes={meta.data?.forecast_run_times_utc} />
         ) : (
-          <div className="flex min-w-[240px] flex-1 flex-col gap-1 sm:max-w-sm">
+          <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[240px] sm:max-w-sm sm:flex-1">
             <label htmlFor="horizon" className="flex items-baseline justify-between text-xs font-medium text-ink2">
               <span>Minimum lead time</span>
               <span className="tabular text-sm font-semibold text-ink">{sliderH} h</span>
@@ -166,7 +167,7 @@ function AccuracyBody({ data, busy, mode, horizonH, curve, sel, actualMode, min,
   const context =
     mode === 'cutoff'
       ? `At a ${data.cutoff ?? ''} D-1 cut-off${decisionRange ? ` (${decisionRange[0]}–${decisionRange[1]}h ahead)` : ''}, across ${data.n} delivery hours`
-      : `With forecasts at least ${data.horizon_h ?? horizonH}h old, across ${data.n} delivery hours`;
+      : `With forecasts published at least ${data.horizon_h ?? horizonH}h ahead, across ${data.n} delivery hours`;
 
   const insights = [
     bandInsight(data.quantiles, context),
@@ -184,7 +185,9 @@ function AccuracyBody({ data, busy, mode, horizonH, curve, sel, actualMode, min,
           <KpiTile
             label="Bias"
             value={fmtSignedPower(k.bias)}
-            note={k.bias > 0 ? 'Over-forecast on average' : k.bias < 0 ? 'Under-forecast on average' : 'Unbiased'}
+            note={
+              k.bias === null ? 'No matched hours' : k.bias > 0 ? 'Over-forecast on average' : k.bias < 0 ? 'Under-forecast on average' : 'Unbiased'
+            }
           />
           <KpiTile label="nMAE" value={fmtPct(k.nmae_pct)} note={`MAE ÷ mean actual (${fmtPower(k.mean_actual)})`} />
           <KpiTile label="P90 absolute error" swatch="risk" value={fmtPower(k.p90_abs_error)} note="9 hours in 10 miss by less" />
@@ -231,7 +234,7 @@ function AccuracyBody({ data, busy, mode, horizonH, curve, sel, actualMode, min,
       >
         <DailyMaeChart
           data={data.by_day}
-          onSelectDay={(d) => navigate(`/?date=${d}${sel.kind === 'cutoff' ? `&cutoff=${sel.cutoff}` : ''}`)}
+          onSelectDay={(d) => navigate(`/?date=${d}${sel.kind === 'cutoff' ? `&cutoff=${sel.cutoff}` : ''}&actual=${actualMode}`)}
         />
       </Panel>
 
@@ -239,7 +242,7 @@ function AccuracyBody({ data, busy, mode, horizonH, curve, sel, actualMode, min,
 
       <div className="grid gap-5 lg:grid-cols-5">
         <Panel title="Worst 10 hours" subtitle="Largest absolute errors in the selection" className="lg:col-span-3" busy={busy}>
-          <WorstHoursTable rows={data.worst_hours} cutoff={sel.kind === 'cutoff' ? sel.cutoff : null} />
+          <WorstHoursTable rows={data.worst_hours} cutoff={sel.kind === 'cutoff' ? sel.cutoff : null} actualMode={actualMode} />
         </Panel>
         <Panel title="Error by wind level" subtitle="Bucketed by forecast generation, 5 GW bands" className="lg:col-span-2" busy={busy}>
           <LevelTable rows={data.by_level} />

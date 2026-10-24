@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
-import type { WorstHour } from '../../api/types';
+import type { ActualMode, WorstHour } from '../../api/types';
 import { fmtGW, fmtSignedPower, fmtUtcDateTime } from '../../lib/format';
 
 /** Top-10 absolute misses, each linking to that delivery day on the Decision Desk. */
-export function WorstHoursTable({ rows, cutoff }: { rows: WorstHour[]; cutoff: string | null }) {
+export function WorstHoursTable({ rows, cutoff, actualMode }: { rows: WorstHour[]; cutoff: string | null; actualMode: ActualMode }) {
   return (
     <div className="overflow-x-auto">
       <table className="tabular w-full min-w-[520px] text-left text-[13px]">
@@ -21,7 +21,7 @@ export function WorstHoursTable({ rows, cutoff }: { rows: WorstHour[]; cutoff: s
         <tbody>
           {rows.map((r) => {
             const day = r.start_time.slice(0, 10);
-            const href = `/?date=${day}${cutoff ? `&cutoff=${cutoff}` : ''}`;
+            const href = `/?date=${day}${cutoff ? `&cutoff=${cutoff}` : ''}&actual=${actualMode}`;
             const short = r.error > 0;
             return (
               <tr key={r.start_time} className="border-b border-line last:border-0 hover:bg-sunken">

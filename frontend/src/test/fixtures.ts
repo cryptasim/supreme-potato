@@ -46,6 +46,7 @@ export function decisionFixture(date = '2026-01-15'): DecisionResponse {
       bias: 400,
       max_abs_error: 400,
       n: 24,
+      forecast_hours: 24,
     },
     band: { q10: -2100, q50: 50, q90: 1900 },
   };

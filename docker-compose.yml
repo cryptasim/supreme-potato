@@ -1,13 +1,18 @@
 # Local production-like stack:
-#   http://localhost:8080        -> nginx (SPA) -> /api proxied to backend
-#   http://localhost:8000/api/*  -> FastAPI directly (handy for curl / docs)
+#   http://localhost:8080        -> nginx (SPA)
+#   http://localhost:8080/api/*  -> nginx proxies to FastAPI (use this for curl / docs)
+# The backend is only exposed on the compose network, not published to the host: uvicorn trusts
+# X-Forwarded-* from any peer (--forwarded-allow-ips '*'), which is safe only behind nginx.
+# Live refresh is off unless REFRESH_TOKEN is set (e.g. `REFRESH_TOKEN=... docker compose up`).
 services:
   backend:
     build:
       context: ./backend
     image: gridbricks-backend
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
+    environment:
+      REFRESH_TOKEN: ${REFRESH_TOKEN:-}
     restart: unless-stopped
 
   frontend:

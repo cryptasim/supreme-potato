@@ -191,6 +191,11 @@ export function MethodologyPage() {
               WINDFOR covers transmission-metered wind. Embedded wind and solar sit in demand, not here.
             </li>
             <li>One month of data is a small sample: one storm can move the tails.</li>
+            <li>
+              FUELHH is metered output after balancing actions. Part of January's steady over-forecast may be wind
+              curtailed for grid constraints rather than forecast skill. That hypothesis is worth testing with BOAL
+              data.
+            </li>
           </ul>
           <p className="font-medium text-ink">Next steps</p>
           <ul className="list-disc pl-5">

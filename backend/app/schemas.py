@@ -49,6 +49,7 @@ class DecisionSummary(BaseModel):
     bias: float | None
     max_abs_error: float | None
     n: int
+    forecast_hours: int  # hours of the day that have a selected forecast (0..24)
 
 
 class Band(BaseModel):

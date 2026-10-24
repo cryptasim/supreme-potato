@@ -4,6 +4,7 @@ Every public function takes the ``DataStore`` as its first argument and is wrapp
 ``functools.lru_cache``. The store hashes/compares by its data version, so the cache key is
 (data version, request params): a refresh produces a new version and old entries simply stop
 being hit. Cached payloads are plain dicts/tuples that callers must treat as read-only.
+``clear_caches()`` drops them all after a refresh so a superseded dataset is not kept in memory.
 """
 
 from __future__ import annotations
@@ -189,6 +190,7 @@ def decision(store: DataStore, delivery_date: date, cutoff: str, actual_mode: Ac
             "bias": _r(m.bias(errors)),
             "max_abs_error": _r(m.max_abs(errors)),
             "n": len(errors),
+            "forecast_hours": sum(r.forecast is not None for r in rows),
         },
         "band": {"q10": _r(q10), "q50": _r(q50), "q90": _r(q90)},
     }
@@ -212,6 +214,11 @@ def series(store: DataStore, start: date, end: date, mode: Mode, actual_mode: Ac
 
 def _level_bucket(forecast: float) -> int:
     return int(forecast // LEVEL_BUCKET_MW)
+
+
+def _level_label(bucket: int) -> str:
+    lo, hi = bucket * LEVEL_BUCKET_MW / 1000, (bucket + 1) * LEVEL_BUCKET_MW / 1000
+    return f"{lo:g}-{hi:g} GW"
 
 
 @lru_cache(maxsize=CACHE_SIZE)
@@ -265,7 +272,7 @@ def accuracy(store: DataStore, mode: Mode, actual_mode: ActualMode) -> dict:
             }
             for d in delivery_dates()
         ],
-        "by_level": [{"bucket": f"{b * 5}-{(b + 1) * 5} GW", **_error_stats(by_level[b])} for b in sorted(by_level)],
+        "by_level": [{"bucket": _level_label(b), **_error_stats(by_level[b])} for b in sorted(by_level)],
         "worst_hours": [
             {
                 "start_time": format_ts(r.start_ts),
@@ -296,3 +303,9 @@ def horizon_curve(store: DataStore, actual_mode: ActualMode) -> list[dict]:
             }
         )
     return out
+
+
+def clear_caches() -> None:
+    """Drop every cached payload (called after a successful refresh swaps in a new dataset)."""
+    for fn in (window_rows, decision, series, accuracy, horizon_curve):
+        fn.cache_clear()

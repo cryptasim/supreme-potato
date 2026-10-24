@@ -51,6 +51,20 @@ describe('DecisionDesk', () => {
     expect(decisionCall).toContain('actual_mode=point');
   });
 
+  it('labels energy totals by hours with a forecast, separately from matched hours', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname === '/api/meta') return jsonResponse(META);
+      const body = decisionFixture();
+      body.summary = { ...body.summary, n: 20, forecast_hours: 24 };
+      return jsonResponse(body);
+    });
+    renderDesk();
+    expect(await screen.findByText('Delivery day total over 24 hours with a forecast')).toBeInTheDocument();
+    expect(screen.getByText(/≈ 2\.1 GW per hour/)).toBeInTheDocument(); // 50,400 MWh / 24 h
+    expect(screen.getByText(/20 hours with forecast and actual/)).toBeInTheDocument();
+  });
+
   it('steps to the next delivery day and refetches', async () => {
     renderDesk();
     await screen.findByText(/14 Jan 07:30 UTC/);

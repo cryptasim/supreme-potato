@@ -8,9 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app import data_store
+from app import data_store, service
 from app.elexon import Actual, Forecast
 from app.main import app
+from app.selection import HOUR, Mode
 
 SNAPSHOT = Path(__file__).resolve().parents[1] / "data" / "snapshot_jan2026.json.gz"
 
@@ -26,9 +27,9 @@ def test_health(client):
 
 def test_meta(client):
     meta = client.get("/api/meta").json()
-    assert meta["forecast_runs"] == 264
+    assert meta["forecast_runs"] == 272
     assert meta["actual_points"] == 1488
-    assert meta["forecast_points"] == 19272
+    assert meta["forecast_points"] == 19856
     assert meta["forecast_run_times_utc"] == ["02:30", "04:30", "07:30", "09:30", "11:30", "15:30", "18:30", "22:30"]
     assert (meta["delivery_from"], meta["delivery_to"]) == ("2026-01-02", "2026-02-01")
     assert (meta["decision_from"], meta["decision_to"]) == ("2026-01-01", "2026-01-31")
@@ -69,6 +70,7 @@ class TestDecision:
     def test_summary(self, body):
         s, pts = body["summary"], body["points"]
         assert s["n"] == 24
+        assert s["forecast_hours"] == 24
         assert s["forecast_mwh"] == pytest.approx(sum(p["forecast"] for p in pts), abs=1)
         assert s["extra_to_procure_mwh"] == pytest.approx(sum(p["forecast"] - p["p10"] for p in pts), abs=1)
         assert s["p10_mwh"] == pytest.approx(s["forecast_mwh"] - s["extra_to_procure_mwh"], abs=1)
@@ -198,17 +200,65 @@ def test_horizon_curve(client):
     assert body[0]["mae"] < body[48]["mae"]
 
 
+def test_horizon_mode_never_selects_stale_runs():
+    """Regression: for every H the selected run is the latest one with lead >= H, so lead - H is below
+    the largest gap between consecutive runs. A truncated publish window (e.g. ending at midnight of the
+    last delivery day) breaks this for that day's hours."""
+    store = data_store.get_store()
+    pt = store.publish_times
+    max_gap_h = max(b - a for a, b in zip(pt, pt[1:], strict=False)) / HOUR
+    assert max_gap_h <= 4.5  # hourly-ish schedule: runs ~2-4h apart
+    for h in range(49):
+        rows = [r for r in service.window_rows(store, Mode.for_horizon(h), "point") if r.publish_ts is not None]
+        assert rows
+        worst = max(r.horizon_h - h for r in rows)
+        assert 0 <= worst < max_gap_h, (h, worst)
+
+
+def test_level_buckets_labelled_from_bucket_size(client):
+    body = client.get("/api/accuracy", params={"cutoff": "09:00"}).json()
+    gw = service.LEVEL_BUCKET_MW / 1000
+    assert body["by_level"][0]["bucket"] == f"0-{gw:g} GW"
+
+
 def test_cors_allows_any_origin(client):
     resp = client.get("/api/health", headers={"Origin": "https://example.com"})
     assert resp.headers["access-control-allow-origin"] == "*"
+
+
+def test_cors_preflight_rejects_post(client):
+    headers = {"Origin": "https://example.com", "Access-Control-Request-Method": "POST"}
+    assert client.options("/api/refresh", headers=headers).status_code == 400
+
+
+TOKEN = "s3cret-test-token"
+
+
+def test_refresh_disabled_without_env_token(client, monkeypatch):
+    monkeypatch.delenv("REFRESH_TOKEN", raising=False)
+    resp = client.post("/api/refresh", headers={"X-Refresh-Token": "anything"})
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "refresh disabled"
+
+
+@pytest.mark.parametrize("headers", [{}, {"X-Refresh-Token": "wrong"}])
+def test_refresh_rejects_missing_or_wrong_token(client, monkeypatch, headers):
+    monkeypatch.setenv("REFRESH_TOKEN", TOKEN)
+
+    def must_not_be_called(*_args, **_kwargs):
+        raise AssertionError("fetch must not run without a valid token")
+
+    monkeypatch.setattr(data_store, "fetch_actuals", must_not_be_called)
+    assert client.post("/api/refresh", headers=headers).status_code == 403
 
 
 def test_refresh_failure_returns_502_and_keeps_snapshot(client, monkeypatch):
     def boom(*_args, **_kwargs):
         raise RuntimeError("Elexon unavailable")
 
+    monkeypatch.setenv("REFRESH_TOKEN", TOKEN)
     monkeypatch.setattr(data_store, "fetch_actuals", boom)
-    resp = client.post("/api/refresh")
+    resp = client.post("/api/refresh", headers={"X-Refresh-Token": TOKEN})
     assert resp.status_code == 502
     assert "Elexon unavailable" in resp.json()["detail"]
     assert client.get("/api/meta").json()["data_mode"] == "snapshot"
@@ -216,6 +266,7 @@ def test_refresh_failure_returns_502_and_keeps_snapshot(client, monkeypatch):
 
 def test_refresh_success_swaps_data_and_invalidates_cache(client, monkeypatch):
     # Restore the snapshot store after this test so other tests are unaffected.
+    monkeypatch.setenv("REFRESH_TOKEN", TOKEN)
     monkeypatch.setattr(data_store, "_current", data_store.get_store())
     monkeypatch.setattr(
         data_store,
@@ -226,9 +277,14 @@ def test_refresh_success_swaps_data_and_invalidates_cache(client, monkeypatch):
         data_store, "fetch_forecasts", lambda *_: [Forecast("2026-01-14T07:30:00Z", "2026-01-15T12:00:00Z", 1500.0)]
     )
     assert client.get("/api/accuracy", params={"cutoff": "09:00"}).json()["n"] == 744  # now cached
+    assert service.accuracy.cache_info().currsize > 0
 
-    resp = client.post("/api/refresh")
+    resp = client.post("/api/refresh", headers={"X-Refresh-Token": TOKEN})
     assert resp.status_code == 200
+    assert all(  # superseded dataset's payloads are dropped, not just orphaned
+        fn.cache_info().currsize == 0
+        for fn in (service.window_rows, service.decision, service.series, service.accuracy, service.horizon_curve)
+    )
     assert resp.json()["data_mode"] == "live"
     assert resp.json()["forecast_points"] == 1
 

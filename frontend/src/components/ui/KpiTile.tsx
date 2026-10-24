@@ -32,7 +32,7 @@ export function KpiTile({ label, value, note, swatch, emphasis = false, badge }:
         <span className="text-xs font-medium text-ink2">{label}</span>
         {badge && <span className="ml-auto">{badge}</span>}
       </div>
-      <div className="text-[26px] font-semibold leading-tight tracking-tight text-ink">{value}</div>
+      <div className="break-words text-[22px] font-semibold leading-tight tracking-tight text-ink sm:text-[26px]">{value}</div>
       {note && <div className="text-xs leading-snug text-muted">{note}</div>}
     </div>
   );

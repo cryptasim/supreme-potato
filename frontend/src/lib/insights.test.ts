@@ -7,6 +7,12 @@ describe('insights', () => {
     const i = bandInsight(q, 'At 09:00');
     expect(i?.headline).toBe('80% of the time, actual wind lands between 2.1 GW below and 1.9 GW above the forecast');
   });
+  it('handles a band that sits entirely below the forecast', () => {
+    const q = { q01: -7000, q05: -6000, q10: -5000, q25: -3500, q50: -2000, q75: -1000, q90: -300, q95: 200, q99: 1500 };
+    expect(bandInsight(q, 'At 48h')?.headline).toBe(
+      '80% of the time, actual wind lands between 0.3 GW and 5.0 GW below the forecast',
+    );
+  });
   it('reads positive bias (forecast − actual) as over-forecast', () => {
     expect(biasInsight(320)?.headline).toBe('Forecasts over-estimate wind by 320 MW on average');
     expect(biasInsight(320)?.tone).toBe('risk');
@@ -31,5 +37,21 @@ describe('insights', () => {
       { hour: 17, mae: 1300, bias: 0, n: 31 },
     ];
     expect(worstHourInsight(byHour)?.headline).toBe('Errors peak around 17:00 UTC (MAE 1.30 GW)');
+  });
+  it('skips hours with a null MAE and returns null when none remain', () => {
+    const byHour = [
+      { hour: 3, mae: 700, bias: 0, n: 31 },
+      { hour: 9, mae: null, bias: null, n: 0 },
+      { hour: 17, mae: 1300, bias: 0, n: 31 },
+    ];
+    const i = worstHourInsight(byHour);
+    expect(i?.headline).toBe('Errors peak around 17:00 UTC (MAE 1.30 GW)');
+    expect(i?.detail).toMatch(/^The calmest hour is 03:00 UTC/);
+    expect(worstHourInsight([{ hour: 0, mae: null, bias: null, n: 0 }])).toBeNull();
+  });
+  it('omits band and bias findings when the backend returns nulls', () => {
+    const q = { q01: null, q05: null, q10: null, q25: null, q50: null, q75: null, q90: null, q95: null, q99: null };
+    expect(bandInsight(q, 'At 09:00')).toBeNull();
+    expect(biasInsight(null)).toBeNull();
   });
 });
