@@ -1,7 +1,7 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { ByDay } from '../../api/types';
-import { fmtGWh, fmtLongDate, fmtPower, fmtSignedPower, fmtUtcDate } from '../../lib/format';
+import { fmtGWh, fmtLongDate, fmtPower, fmtSignedPower, fmtUtcDate, mwTick, niceTicks } from '../../lib/format';
 import { AXIS_PROPS, GRID_PROPS, TooltipCard, xLabel, yLabel } from './common';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 /** Daily MAE; the worst day is called out in the risk hue. Clicking a bar opens that day on the desk. */
 export function DailyMaeChart({ data, onSelectDay, height = 240 }: Props) {
   const rows = data.map((d) => ({ ...d, label: fmtUtcDate(d.delivery_date) }));
+  const ticks = niceTicks(Math.max(0, ...rows.map((r) => r.mae ?? 0)) * 1.04);
   const worst = rows.reduce<ByDay | null>((a, b) => ((b.mae ?? -1) > (a?.mae ?? -1) ? b : a), null);
 
   return (
@@ -25,7 +26,9 @@ export function DailyMaeChart({ data, onSelectDay, height = 240 }: Props) {
             {...AXIS_PROPS}
             axisLine={false}
             width={56}
-            tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+            ticks={ticks}
+            domain={[0, ticks[ticks.length - 1]]}
+            tickFormatter={mwTick}
             label={yLabel('MAE (MW)')}
           />
           <Tooltip content={<DayTooltip />} cursor={{ fill: 'var(--grid)' }} />

@@ -1,7 +1,7 @@
 import { CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { HorizonCurvePoint } from '../../api/types';
-import { fmtPower, gwTick } from '../../lib/format';
+import { fmtPower, gwTick, niceTicks } from '../../lib/format';
 import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, xLabel, yLabel } from './common';
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
 
 /** "How much does waiting for a fresher forecast help?": error vs lead time. */
 export function HorizonCurveChart({ curve, selectedH = null, decisionRange = null, height = 280 }: Props) {
+  const ticks = niceTicks(Math.max(0, ...curve.map((p) => p.p90_abs_error ?? 0)) * 1.05);
   return (
     <div className="flex flex-col gap-3">
       <ChartLegend
@@ -35,7 +36,7 @@ export function HorizonCurveChart({ curve, selectedH = null, decisionRange = nul
               {...AXIS_PROPS}
               label={xLabel('Lead time: hours between forecast publication and target hour')}
             />
-            <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} label={yLabel('Error (GW)')} />
+            <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} ticks={ticks} domain={[0, ticks[ticks.length - 1]]} label={yLabel('Error (GW)')} />
             <Tooltip content={<CurveTooltip />} cursor={{ stroke: 'var(--axis)' }} />
             {decisionRange && (
               <ReferenceArea

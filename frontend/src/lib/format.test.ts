@@ -15,6 +15,8 @@ import {
   gwTick,
   isValidYmd,
   minutesBetween,
+  niceTicks,
+  niceTicksSigned,
 } from './format';
 
 describe('power and energy formatting', () => {
@@ -81,5 +83,22 @@ describe('UTC date handling', () => {
   });
   it('measures minutes between timestamps', () => {
     expect(minutesBetween('2026-01-14T07:30:00Z', '2026-01-14T09:00:00Z')).toBe(90);
+  });
+});
+
+describe('niceTicks', () => {
+  it('produces round GW steps covering the max', () => {
+    expect(niceTicks(17_300)).toEqual([0, 5000, 10000, 15000, 20000]);
+    expect(niceTicks(9_000)).toEqual([0, 2000, 4000, 6000, 8000, 10000]);
+    expect(niceTicks(0)).toEqual([0]);
+  });
+});
+
+describe('niceTicksSigned', () => {
+  it('extends below zero for negative minima', () => {
+    expect(niceTicksSigned(-300, 2400)).toEqual([-500, 0, 500, 1000, 1500, 2000, 2500]);
+  });
+  it('matches niceTicks when everything is positive', () => {
+    expect(niceTicksSigned(0, 2400)).toEqual([0, 500, 1000, 1500, 2000, 2500]);
   });
 });

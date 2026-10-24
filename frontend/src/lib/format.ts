@@ -126,3 +126,30 @@ export function gwTick(mw: number): string {
   const gw = mw / 1000;
   return Number.isInteger(gw) ? String(gw) : gw.toFixed(1);
 }
+
+/** Round-number ticks from 0 to just above `max` (MW), ~4–6 ticks on 1/2/2.5/5 × 10^n steps. */
+export function niceTicks(max: number, target = 5): number[] {
+  if (!Number.isFinite(max) || max <= 0) return [0];
+  const raw = max / target;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw) ?? 10 * pow;
+  const top = Math.ceil(max / step) * step;
+  const out: number[] = [];
+  for (let v = 0; v <= top + step / 2; v += step) out.push(Math.round(v));
+  return out;
+}
+
+/** Like niceTicks but also extends below zero when `min` is negative (signed measures such as bias). */
+export function niceTicksSigned(min: number, max: number, target = 5): number[] {
+  // Step is sized on the larger magnitude so both arms share it; the positive arm only reaches max.
+  const step = niceTicks(Math.max(max, -min, 1), target)[1] ?? 1;
+  const ticks: number[] = [];
+  for (let v = -step; v > min - step; v -= step) ticks.unshift(Math.round(v));
+  for (let v = 0; v < max + step; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+
+/** MW axis tick with thousands separators: 2000 → "2,000". */
+export function mwTick(mw: number): string {
+  return Math.round(mw).toLocaleString('en-GB');
+}

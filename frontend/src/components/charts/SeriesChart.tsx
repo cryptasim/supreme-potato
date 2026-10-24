@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Brush, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { SeriesResponse } from '../../api/types';
-import { fmtGW, fmtSignedPower, fmtUtcDate, fmtUtcDateTime, gwTick } from '../../lib/format';
+import { fmtGW, fmtSignedPower, fmtUtcDate, fmtUtcDateTime, gwTick, niceTicks } from '../../lib/format';
 import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, UTC_AXIS_TITLE, xLabel, yLabel } from './common';
 
 interface Row {
@@ -43,6 +43,10 @@ export function mergeSeries(data: SeriesResponse): Row[] {
 
 export function SeriesChart({ data, height = 340 }: { data: SeriesResponse; height?: number }) {
   const rows = useMemo(() => mergeSeries(data), [data]);
+  const ticks = useMemo(
+    () => niceTicks(Math.max(0, ...rows.map((r) => Math.max(r.forecast ?? 0, r.actual ?? 0))) * 1.04),
+    [rows],
+  );
   const fmtTick = (ts: number) => fmtUtcDate(new Date(ts).toISOString());
 
   return (
@@ -68,7 +72,7 @@ export function SeriesChart({ data, height = 340 }: { data: SeriesResponse; heig
               label={xLabel(`Date, ${UTC_AXIS_TITLE}`)}
               height={40}
             />
-            <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} label={yLabel('Wind generation (GW)')} />
+            <YAxis {...AXIS_PROPS} axisLine={false} width={52} tickFormatter={gwTick} ticks={ticks} domain={[0, ticks[ticks.length - 1]]} label={yLabel('Wind generation (GW)')} />
             <Tooltip content={<SeriesTooltip />} cursor={{ stroke: 'var(--axis)' }} />
             <Line dataKey="actual" stroke="var(--actual)" strokeWidth={1.75} dot={false} connectNulls isAnimationActive={false} />
             <Line dataKey="forecast" stroke="var(--forecast)" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />

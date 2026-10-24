@@ -1,12 +1,16 @@
 import { Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { ByHour } from '../../api/types';
-import { fmtPower, fmtSignedPower } from '../../lib/format';
+import { fmtPower, fmtSignedPower, mwTick, niceTicksSigned } from '../../lib/format';
 import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, UTC_AXIS_TITLE, xLabel, yLabel } from './common';
 
 /** MAE (bars) and bias (line) by hour of day. Same unit, so one axis. */
 export function HourOfDayChart({ data, height = 260 }: { data: ByHour[]; height?: number }) {
   const rows = data.map((d) => ({ ...d, label: String(d.hour).padStart(2, '0') }));
+  const ticks = niceTicksSigned(
+    Math.min(0, ...data.map((d) => d.bias)),
+    Math.max(0, ...data.map((d) => Math.max(d.mae, d.bias))) * 1.04,
+  );
   return (
     <div className="flex flex-col gap-3">
       <ChartLegend
@@ -24,7 +28,9 @@ export function HourOfDayChart({ data, height = 260 }: { data: ByHour[]; height?
               {...AXIS_PROPS}
               axisLine={false}
               width={56}
-              tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
+              ticks={ticks}
+              domain={[ticks[0], ticks[ticks.length - 1]]}
+              tickFormatter={mwTick}
               label={yLabel('MW')}
             />
             <Tooltip content={<HourTooltip />} cursor={{ fill: 'var(--grid)' }} />

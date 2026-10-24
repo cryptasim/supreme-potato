@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { TooltipProps } from 'recharts';
 import type { DecisionPoint } from '../../api/types';
-import { fmtGW, fmtSignedPower, fmtUtcDateTime, fmtUtcTime, gwTick } from '../../lib/format';
+import { fmtGW, fmtSignedPower, fmtUtcDateTime, fmtUtcTime, gwTick, niceTicks } from '../../lib/format';
 import { AXIS_PROPS, ChartLegend, GRID_PROPS, TooltipCard, UTC_AXIS_TITLE, xLabel, yLabel } from './common';
 
 interface Row {
@@ -93,6 +93,7 @@ export function DecisionChart({ points, height = 340 }: DecisionChartProps) {
   }, [rows]);
 
   const peakForecast = Math.max(0, ...rows.map((r) => Math.max(r.p90 ?? 0, r.actual ?? 0, r.forecast ?? 0)));
+  const ticks = niceTicks(peakForecast * 1.04);
 
   return (
     <div className="flex flex-col gap-3">
@@ -118,7 +119,8 @@ export function DecisionChart({ points, height = 340 }: DecisionChartProps) {
               axisLine={false}
               width={52}
               tickFormatter={gwTick}
-              domain={[0, (max: number) => Math.ceil((max * 1.05) / 2000) * 2000]}
+              domain={[0, ticks[ticks.length - 1]]}
+              ticks={ticks}
               label={yLabel('Wind generation (GW)')}
             />
             <Tooltip content={<DecisionTooltip />} cursor={{ stroke: 'var(--axis)', strokeWidth: 1 }} />
